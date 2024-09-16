@@ -4,20 +4,37 @@ import SendIcon from "@mui/icons-material/Send";
 import { useLanguage } from "../contexts/LanguageContext";
 import { TEXT } from "../utilities/constants";
 import { useTranscript } from "../contexts/TranscriptContext";
+import InputAdornment from '@mui/material/InputAdornment';
 
 function ChatInput({ onSendMessage, processing }) {
   const [message, setMessage] = useState("");
   const [helperText, setHelperText] = useState("");
   const { language } = useLanguage();
   const { transcript, setTranscript, isListening } = useTranscript();
-
+  const [isMultilineAllowed, setIsMultilineAllowed] = useState(true); // State to track multiline
   useEffect(() => {
     if (!isListening && transcript) {
       setMessage(prevMessage => prevMessage ? `${prevMessage} ${transcript}` : transcript);
       setTranscript(""); // Clear the transcript buffer
     }
   }, [isListening, transcript, setTranscript]);
+  // Effect to monitor window width and disable multiline for screens <= 1000px (This is due to a material UI error)
 
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth <= 1000) {
+        setIsMultilineAllowed(false); // Disable multiline for small screens
+      } else {
+        setIsMultilineAllowed(true); // Enable multiline for larger screens
+      }
+    };
+    // Add event listener for resize events
+    window.addEventListener("resize", handleResize);
+    handleResize();
+    return () => {
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []); // Empty array means this effect runs once on mount and listens for resize events
   const handleTyping = (event) => {
     if (helperText) {
       setHelperText("");
@@ -44,37 +61,42 @@ function ChatInput({ onSendMessage, processing }) {
   };
 
   return (
-    <Grid container item xs={12} alignItems="center" className="sendMessageContainer">
-      <Grid item xs={11.5}>
-        <TextField
-          multiline
-          maxRows={4}
-          fullWidth
-          disabled={isListening}
-          placeholder={TEXT[language].CHAT_INPUT_PLACEHOLDER}
-          id="USERCHATINPUT"
-          value={getMessage(message, transcript, isListening)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey && !processing) {
-              e.preventDefault();
-              handleSendMessage();
-            }
-          }}
-          onChange={handleTyping}
-          helperText={isListening ? TEXT[language].SPEECH_RECOGNITION_HELPER_TEXT : helperText}
-          sx={{ "& fieldset": { border: "none" } }}
-        />
-      </Grid>
-      <Grid item xs={0.5}>
-        <IconButton
-          aria-label="send"
-          disabled={processing || isListening}
-          onClick={handleSendMessage}
-          color={message.trim() !== "" ? "primary" : "default"}
-        >
-          <SendIcon />
-        </IconButton>
-      </Grid>
+
+    <Grid container item className="sendMessageContainer">
+      <TextField
+        className="sendMessageContainer"
+        multiline={isMultilineAllowed} // Dynamically allow/disallow multiline
+        maxRows={8}
+        fullWidth
+        disabled={isListening} // Disable input while listening for voice input
+        placeholder={TEXT[language].CHAT_INPUT_PLACEHOLDER}
+        id="USERCHATINPUT"
+        value={getMessage(message, transcript, isListening)} // Handle the message input value
+        onKeyDown={(e) => {
+          // Send message on Enter key press without Shift (to avoid new line in multiline mode)
+          if (e.key === "Enter" && !e.shiftKey && !processing) {
+            e.preventDefault(); 
+            handleSendMessage(); 
+          }
+        }}
+        onChange={handleTyping}
+        helperText={isListening ? TEXT[language].SPEECH_RECOGNITION_HELPER_TEXT : helperText} // Helper text based on current state
+        sx={{ "& fieldset": { border: "none" } }} 
+        InputProps={{
+          endAdornment: (
+            <InputAdornment position="end">
+              <IconButton
+                aria-label="send"
+                disabled={processing || isListening} // Disable send button while processing or listening
+                onClick={handleSendMessage} // Trigger message send on click
+                color={message.trim() !== "" ? "primary" : "default"} // Change button color based on message content
+              >
+                <SendIcon />
+              </IconButton>
+            </InputAdornment>
+          ),
+        }}
+      />
     </Grid>
   );
 }

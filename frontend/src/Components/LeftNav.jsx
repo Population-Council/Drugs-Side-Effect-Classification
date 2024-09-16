@@ -24,7 +24,7 @@ function LeftNav({ showLeftNav = true, setLeftNav, uploadedFile, fileType }) {
                 />
               </Grid>
               {uploadedFile && fileType === "application/pdf" && ALLOW_PDF_PREVIEW ? (
-                <PdfPreview uploadedFile={uploadedFile} highlightedText="Aryan Khanna"/>
+                <PdfPreview uploadedFile={uploadedFile} highlightedText="fair use"/>
               ) : uploadedFile && fileType === "video/mp4" && ALLOW_VIDEO_PREVIEW ? (
                 <VideoPreview uploadedFile={uploadedFile} startTime={0} />
               ) : (

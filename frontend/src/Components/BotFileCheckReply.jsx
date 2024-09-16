@@ -29,7 +29,7 @@ function BotFileCheckReply({ messageId }) {
       <Grid item>
         <Avatar alt="Bot Avatar" src={BotAvatar} />
       </Grid>
-      <Grid item style={{ background: BOTMESSAGE_BACKGROUND, borderRadius: 20, padding: 10 }}>
+      <Grid item mt={2} style={{ background: BOTMESSAGE_BACKGROUND, borderRadius: 20, padding: 10 }}>
         {fileStatus ? (
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Grid, Avatar, Typography } from "@mui/material";
 import BotAvatar from "../Assets/BotAvatar.svg";
+import LoadingAnimation from "../Assets/loading_animation.gif"; // Import the loading animation
 import { ALLOW_CHAT_HISTORY, WEBSOCKET_API, ALLOW_MARKDOWN_BOT } from "../utilities/constants";
 import { useMessage } from "../contexts/MessageContext";
 import createMessageBlock from "../utilities/createMessageBlock";
@@ -8,6 +9,7 @@ import ReactMarkdown from "react-markdown";
 
 const StreamingMessage = ({ initialMessage, processing, setProcessing }) => {
   const [responses, setResponses] = useState([]);
+  const [showLoading, setShowLoading] = useState(true); // State to handle loading animation
   const ws = useRef(null);
   const messageBuffer = useRef("");
   const { messageList, addMessage } = useMessage();
@@ -40,6 +42,11 @@ const StreamingMessage = ({ initialMessage, processing, setProcessing }) => {
 
         if (parsedData.type === "delta") {
           setResponses((prev) => [...prev, parsedData.text]);
+
+          // Hide the loading animation once the first response hits
+          if (showLoading) {
+            setShowLoading(false);
+          }
         }
 
         messageBuffer.current = "";
@@ -94,16 +101,37 @@ const StreamingMessage = ({ initialMessage, processing, setProcessing }) => {
       <Grid item>
         <Avatar alt="Bot Avatar" src={BotAvatar} />
       </Grid>
-      {ALLOW_MARKDOWN_BOT ? (
-        <Grid item className="botMessage" sx={{ backgroundColor: (theme) => theme.palette.background.botMessage }}>
-          <Typography variant="body2" component="div">
-            <ReactMarkdown>{responses.join("")}</ReactMarkdown>
-          </Typography>
-        </Grid>
+      {processing ? (
+        // Show loading animation while waiting for the first response
+        showLoading ? (
+          <Grid item className="botMessage" mt={1} sx={{ backgroundColor: (theme) => theme.palette.background.botMessage }}>
+            <img src={LoadingAnimation} alt="Loading..." style={{ width: '50px', marginTop: '10px' }} />
+          </Grid>
+        ) : (
+          ALLOW_MARKDOWN_BOT ? (
+            <Grid item className="botMessage" mt={1} sx={{ backgroundColor: (theme) => theme.palette.background.botMessage }}>
+              <Typography variant="body2" component="div" >
+                <ReactMarkdown>{responses.join("")}</ReactMarkdown>
+              </Typography>
+            </Grid>
+          ) : (
+            <Grid item className="botMessage" sx={{ backgroundColor: (theme) => theme.palette.background.botMessage }}>
+              <Typography variant="body2" component="div">{responses.join("")}</Typography>  
+            </Grid>
+          )
+        )
       ) : (
-        <Grid item className="botMessage" sx={{ backgroundColor: (theme) => theme.palette.background.botMessage }}>
-          <Typography variant="body2" component="div">{responses.join("")}</Typography>  
-        </Grid>
+        ALLOW_MARKDOWN_BOT ? (
+          <Grid item className="botMessage" mt={1} sx={{ backgroundColor: (theme) => theme.palette.background.botMessage }}>
+            <Typography variant="body2" component="div" >
+              <ReactMarkdown>{responses.join("")}</ReactMarkdown>
+            </Typography>
+          </Grid>
+        ) : (
+          <Grid item className="botMessage" sx={{ backgroundColor: (theme) => theme.palette.background.botMessage }}>
+            <Typography variant="body2" component="div">{responses.join("")}</Typography>  
+          </Grid>
+        )
       )}
     </Grid>
   );
