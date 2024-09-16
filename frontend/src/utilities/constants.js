@@ -113,12 +113,12 @@ export const ALLOW_FILE_UPLOAD = true; // Set to true to enable file upload feat
 export const ALLOW_VOICE_RECOGNITION = false; // Set to true to enable voice recognition feature
 export const ALLOW_MULTLINGUAL_TOGGLE = false; // Set to true to enable multilingual support
 
-export const ALLOW_MARKDOWN_BOT = false; // Set to true to enable markdown support for bot messages
+export const ALLOW_MARKDOWN_BOT = true; // Set to true to enable markdown support for bot messages
 
 export const ALLOW_LANDING_PAGE = false; // Set to true to enable the landing page
 export const ALLOW_AVATAR_BOT = false; // Set to true to enable the avatar for the bot
 export const ALLOW_PDF_PREVIEW = true; // Set to true to enable PDF preview
-export const ALLOW_VIDEO_PREVIEW = true; // Set to true to enable video preview
+export const ALLOW_VIDEO_PREVIEW = false; // Set to true to enable video preview
 export const ALLOW_CHAT_HISTORY = true; // Set to true to enable chat history
 // --------------------------------------------------------------------------------------------------------//
 // Styling under work, would reccomend keeping it false for now
