@@ -6,7 +6,7 @@ import { ALLOW_CHAT_HISTORY, WEBSOCKET_API, ALLOW_MARKDOWN_BOT } from "../utilit
 import { useMessage } from "../contexts/MessageContext";
 import createMessageBlock from "../utilities/createMessageBlock";
 import ReactMarkdown from "react-markdown";
-
+import { BOTMESSAGE_TEXT_COLOR } from "../utilities/constants";
 const StreamingMessage = ({ initialMessage, processing, setProcessing }) => {
   const [responses, setResponses] = useState([]);
   const [showLoading, setShowLoading] = useState(true); // State to handle loading animation
@@ -99,8 +99,20 @@ const StreamingMessage = ({ initialMessage, processing, setProcessing }) => {
   return (
     <Grid container direction="row" justifyContent="flex-start" alignItems="flex-end">
       <Grid item>
-        <Avatar alt="Bot Avatar" src={BotAvatar} />
+        <Avatar
+          alt="Bot Avatar"
+          src={BotAvatar}
+          sx={{
+            width: 40,
+            height: 40,
+            '& .MuiAvatar-img': {
+              objectFit: 'contain',
+              p: 1,
+            },
+          }}
+        />
       </Grid>
+      
       {processing ? (
         // Show loading animation while waiting for the first response
         showLoading ? (
@@ -110,26 +122,26 @@ const StreamingMessage = ({ initialMessage, processing, setProcessing }) => {
         ) : (
           ALLOW_MARKDOWN_BOT ? (
             <Grid item className="botMessage" mt={1} sx={{ backgroundColor: (theme) => theme.palette.background.botMessage }}>
-              <Typography variant="body2" component="div" >
+              <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR}>
                 <ReactMarkdown>{responses.join("")}</ReactMarkdown>
               </Typography>
             </Grid>
           ) : (
             <Grid item className="botMessage" sx={{ backgroundColor: (theme) => theme.palette.background.botMessage }}>
-              <Typography variant="body2" component="div">{responses.join("")}</Typography>  
+              <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR}>{responses.join("")}</Typography>  
             </Grid>
           )
         )
       ) : (
         ALLOW_MARKDOWN_BOT ? (
           <Grid item className="botMessage" mt={1} sx={{ backgroundColor: (theme) => theme.palette.background.botMessage }}>
-            <Typography variant="body2" component="div" >
+            <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR}>
               <ReactMarkdown>{responses.join("")}</ReactMarkdown>
             </Typography>
           </Grid>
         ) : (
           <Grid item className="botMessage" sx={{ backgroundColor: (theme) => theme.palette.background.botMessage }}>
-            <Typography variant="body2" component="div">{responses.join("")}</Typography>  
+            <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR} >{responses.join("")}</Typography>  
           </Grid>
         )
       )}

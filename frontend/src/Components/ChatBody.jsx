@@ -10,6 +10,7 @@ import BotFileCheckReply from './BotFileCheckReply';
 import SpeechRecognitionComponent from './SpeechRecognition';
 import { FAQExamples } from './index';
 import { useMessage } from '../contexts/MessageContext';
+import { USERMESSAGE_TEXT_COLOR } from '../utilities/constants';
 
 function ChatBody({ onFileUpload }) {
   const { messageList, addMessage } = useMessage();
@@ -113,7 +114,7 @@ function UserReply({ message }) {
   return (
     <Grid container direction='row' justifyContent='flex-end' alignItems='flex-end'>
       <Grid item className='userMessage' sx={{ backgroundColor: (theme) => theme.palette.background.userMessage }}>
-        <Typography variant='body2'>{message}</Typography>
+        <Typography variant='body2' color={USERMESSAGE_TEXT_COLOR}>{message}</Typography>
       </Grid>
       <Grid item>
         <Avatar alt={'User Profile Pic'} src={UserAvatar} />

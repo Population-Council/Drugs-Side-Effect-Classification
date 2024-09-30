@@ -1,24 +1,28 @@
 // --------------------------------------------------------------------------------------------------------//
 // Primary color constants for the theme
-export const PRIMARY_MAIN = "#444E56"; // The main primary color used for buttons, highlights, etc.
-export const primary_50 = "#E7B00C"; // The 50 variant of the primary color
+export const PRIMARY_MAIN = "#003A5D"; // The main primary color used for buttons, highlights, etc.
+export const primary_50 = "#6BC049"; // The 50 variant of the primary color
 
 // Background color constants
 export const SECONDARY_MAIN = "#D3D3D3"; // The main secondary color used for less prominent elements
 
 // Chat component background colors
 export const CHAT_BODY_BACKGROUND = "#FFFFFF"; // Background color for the chat body area
-export const CHAT_LEFT_PANEL_BACKGROUND = "#444E56"; // Background color for the left panel in the chat
+export const CHAT_LEFT_PANEL_BACKGROUND = "#003A5D"; // Background color for the left panel in the chat
 export const ABOUT_US_HEADER_BACKGROUND = "#FFFFFF"; // Background color for the About Us section in the left panel
 export const FAQ_HEADER_BACKGROUND = "#FFFFFF"; // Background color for the FAQ section in the left panel
 export const ABOUT_US_TEXT = "#FFFFFF"; // Text color for the About Us section in the left panel
 export const FAQ_TEXT = "#FFFFFF"; // Text color for the FAQ section in the left panel
 export const HEADER_BACKGROUND = "#FFFFFF"; // Background color for the header
-export const HEADER_TEXT_GRADIENT = "#444E56"; // Text gradient color for the header
-
+export const HEADER_TEXT_GRADIENT = "linear-gradient(90deg, #003A5D, #6BC049)"; // Text gradient color for the header
+//D3D3D3
+// 6BC049
+//003A5D
 // Message background colors
-export const BOTMESSAGE_BACKGROUND = "#F5F5F5"; // Background color for messages sent by the bot
-export const USERMESSAGE_BACKGROUND = "#FFEFCA"; // Background color for messages sent by the user
+export const BOTMESSAGE_BACKGROUND = "#6BC049"; // Background color for messages sent by the bot
+export const BOTMESSAGE_TEXT_COLOR = "#000000"; // Text color for messages sent by the bot
+export const USERMESSAGE_BACKGROUND = "#003A5D"; // Background color for messages sent by the user
+export const USERMESSAGE_TEXT_COLOR = "#FFFFFF"; // Text color for messages sent by the user
 
 // --------------------------------------------------------------------------------------------------------//
 // --------------------------------------------------------------------------------------------------------//
@@ -26,20 +30,20 @@ export const USERMESSAGE_BACKGROUND = "#FFEFCA"; // Background color for message
 // Text Constants
 export const TEXT = {
   EN: {
-    APP_NAME: "Chatbot Template App",
-    APP_ASSISTANT_NAME: "GenAI Bot",
+    APP_NAME: "Population Council Chatbot",
+    APP_ASSISTANT_NAME: "Population Council Chatbot",
     ABOUT_US_TITLE: "About Us",
-    ABOUT_US: "Welcome to the GenAI chat bot! We're here to assist to quickly access relevant information.",
+    ABOUT_US: "The Population Council is a leading research organization dedicated to building an equitable and sustainable world that enhances the health and well-being of current and future generations.",
     FILE_PREVIEW:"Uploaded File",
     FAQ_TITLE: "Frequently Asked Questions",
     FAQS: [
-      "What is React JS? and How do I get started?",
-      "What is a Chatbot and how does it work?",
-      "Write me a essay on the history of the internet.",
-      "What is the capital of France and its population?",
-      "What is the weather like in New York?"
+      "What is the Population Council Mission?",
+      "How does Population Council conduct its research?",
+      "In which countries does the Population Council work?",
+      "How can I partner with the Population Council?",
+      "What career opportunities or fellowships are available?"
     ],
-    CHAT_HEADER_TITLE: "Sample AI Chat Assistant",
+    CHAT_HEADER_TITLE: "Population Council Chatbot",
     CHAT_INPUT_PLACEHOLDER: "Type a Query...",
     HELPER_TEXT: "Cannot send empty message",
     SPEECH_RECOGNITION_START: "Start Listening",
@@ -109,7 +113,7 @@ export const AVATAR_BOT_WEBSITE_LINK = process.env.REACT_APP_AVATAR_BOT_WEBSITE_
 export const MAX_TEXT_LENGTH_PDF = 5000; // Number of words to check for PDF size (150000 - 200000 is good enough for 200k token limit of claude)
 
 // Features
-export const ALLOW_FILE_UPLOAD = true; // Set to true to enable file upload feature
+export const ALLOW_FILE_UPLOAD = false; // Set to true to enable file upload feature
 export const ALLOW_VOICE_RECOGNITION = false; // Set to true to enable voice recognition feature
 export const ALLOW_MULTLINGUAL_TOGGLE = false; // Set to true to enable multilingual support
 
