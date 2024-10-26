@@ -7,12 +7,17 @@ import { useMessage } from "../contexts/MessageContext";
 import createMessageBlock from "../utilities/createMessageBlock";
 import ReactMarkdown from "react-markdown";
 import { BOTMESSAGE_TEXT_COLOR } from "../utilities/constants";
+import {List, ListItem, Link } from "@mui/material";
+
 const StreamingMessage = ({ initialMessage, processing, setProcessing }) => {
   const [responses, setResponses] = useState([]);
   const [showLoading, setShowLoading] = useState(true); // State to handle loading animation
   const ws = useRef(null);
   const messageBuffer = useRef("");
   const { messageList, addMessage } = useMessage();
+  const [sources, setSources] = useState([]);
+
+
 
   useEffect(() => {
     ws.current = new WebSocket(WEBSOCKET_API);
@@ -47,6 +52,20 @@ const StreamingMessage = ({ initialMessage, processing, setProcessing }) => {
           if (showLoading) {
             setShowLoading(false);
           }
+        }
+        if(parsedData.type === "sources") {
+          setSources(parsedData.sources);
+          const sourcesMessage = parsedData.sources.map((source, index) => `Paper ${index + 1}: ${source}`).join("\n");
+          const sourcesMessageBlock = createMessageBlock(
+            sourcesMessage,
+            "BOT",
+            "SOURCES",
+            "SENT"
+          );
+          addMessage(sourcesMessageBlock);
+          console.log("Sources message added to message list");
+          console.log("Message list with sources(hopefully): ", messageList);
+        
         }
 
         messageBuffer.current = "";
@@ -96,56 +115,97 @@ const StreamingMessage = ({ initialMessage, processing, setProcessing }) => {
     }
   }, [processing]);
 
+
+
   return (
-    <Grid container direction="row" justifyContent="flex-start" alignItems="flex-end">
-      <Grid item>
-        <Avatar
-          alt="Bot Avatar"
-          src={BotAvatar}
+    <>
+      {/* Primary message container */}
+      <Grid container direction="row" justifyContent="flex-start" alignItems="flex-end">
+        <Grid item>
+          {/* Avatar (bot image) */}
+          <Avatar
+            alt="Bot Avatar"
+            src={BotAvatar}
+            sx={{
+              width: 40,
+              height: 40,
+              '& .MuiAvatar-img': {
+                objectFit: 'contain',
+                p: 1,
+              },
+            }}
+          />
+        </Grid>
+
+        <Grid
+          item
+          className="botMessage"
+          mt={1}
           sx={{
-            width: 40,
-            height: 40,
-            '& .MuiAvatar-img': {
-              objectFit: 'contain',
-              p: 1,
-            },
+            backgroundColor: (theme) => theme.palette.background.botMessage,
           }}
-        />
-      </Grid>
-      
-      {processing ? (
-        // Show loading animation while waiting for the first response
-        showLoading ? (
-          <Grid item className="botMessage" mt={1} sx={{ backgroundColor: (theme) => theme.palette.background.botMessage }}>
-            <img src={LoadingAnimation} alt="Loading..." style={{ width: '50px', marginTop: '10px' }} />
-          </Grid>
-        ) : (
-          ALLOW_MARKDOWN_BOT ? (
-            <Grid item className="botMessage" mt={1} sx={{ backgroundColor: (theme) => theme.palette.background.botMessage }}>
+        >
+          {processing ? (
+            showLoading ? (
+              <img src={LoadingAnimation} alt="Loading..." style={{ width: '50px', marginTop: '10px' }} />
+            ) : (
+              ALLOW_MARKDOWN_BOT ? (
+                <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR}>
+                  <ReactMarkdown>{responses.join("")}</ReactMarkdown>
+                </Typography>
+              ) : (
+                <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR}>
+                  {responses.join("")}
+                </Typography>
+              )
+            )
+          ) : (
+            ALLOW_MARKDOWN_BOT ? (
               <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR}>
                 <ReactMarkdown>{responses.join("")}</ReactMarkdown>
               </Typography>
-            </Grid>
-          ) : (
-            <Grid item className="botMessage" sx={{ backgroundColor: (theme) => theme.palette.background.botMessage }}>
-              <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR}>{responses.join("")}</Typography>  
-            </Grid>
-          )
-        )
-      ) : (
-        ALLOW_MARKDOWN_BOT ? (
-          <Grid item className="botMessage" mt={1} sx={{ backgroundColor: (theme) => theme.palette.background.botMessage }}>
-            <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR}>
-              <ReactMarkdown>{responses.join("")}</ReactMarkdown>
+            ) : (
+              <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR}>
+                {responses.join("")}
+              </Typography>
+            )
+          )}
+        </Grid>
+      </Grid>
+
+      {/* Research papers container, aligned with message block */}
+      {sources.length > 0 && (
+        <Grid
+          container
+          justifyContent="flex-start"
+          mt={1}
+          sx={{
+            paddingLeft: '40px', // Adjust left padding to align with the main message container
+          }}
+        >
+          <Grid
+            item
+            className="botMessage"
+            sx={{
+              backgroundColor: (theme) => theme.palette.background.botMessage,
+            }}
+          >
+            <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR} gutterBottom>
+              Relevant research papers:
             </Typography>
+            <List>
+              {sources.map((source, index) => (
+                <ListItem key={index} disableGutters>
+                  <Link href={source} target="_blank" rel="noopener">
+                    {`Paper ${index + 1}`}
+                  </Link>
+                </ListItem>
+              ))}
+            </List>
           </Grid>
-        ) : (
-          <Grid item className="botMessage" sx={{ backgroundColor: (theme) => theme.palette.background.botMessage }}>
-            <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR} >{responses.join("")}</Typography>  
-          </Grid>
-        )
+        </Grid>
       )}
-    </Grid>
+    </>
   );
 };
 

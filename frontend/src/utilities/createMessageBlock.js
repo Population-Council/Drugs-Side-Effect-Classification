@@ -14,7 +14,7 @@ const createMessageBlock = (message, sentBy, type = "TEXT", state = "PROCESSING"
   // Valid sender types
   const validSenders = ["USER", "BOT"];
   // Valid message types
-  const validTypes = ["TEXT", "FILE"];
+  const validTypes = ["TEXT", "FILE","SOURCES"];
   // Valid message states
   const validStates = ["PROCESSING", "RECEIVED", "SENT", "STREAMING"];
 

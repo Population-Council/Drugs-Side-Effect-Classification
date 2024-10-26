@@ -14,7 +14,7 @@ import { ALLOW_LANDING_PAGE } from './utilities/constants';
 import { TranscriptProvider } from './contexts/TranscriptContext';
 import { MessageProvider } from './contexts/MessageContext';
 import { ALLOW_PDF_PREVIEW, ALLOW_VIDEO_PREVIEW } from './utilities/constants';
-import LinkResultsPage from './Components/LinkResultsPage';
+
 
 function MainApp() {
   const [showLeftNav, setLeftNav] = useState(true);

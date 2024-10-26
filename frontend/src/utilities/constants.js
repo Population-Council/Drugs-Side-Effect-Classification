@@ -19,7 +19,7 @@ export const HEADER_TEXT_GRADIENT = "linear-gradient(90deg, #003A5D, #6BC049)"; 
 // 6BC049
 //003A5D
 // Message background colors
-export const BOTMESSAGE_BACKGROUND = "#6BC049"; // Background color for messages sent by the bot
+export const BOTMESSAGE_BACKGROUND = "#F5F5F5"; // Background color for messages sent by the bot
 export const BOTMESSAGE_TEXT_COLOR = "#000000"; // Text color for messages sent by the bot
 export const USERMESSAGE_BACKGROUND = "#003A5D"; // Background color for messages sent by the user
 export const USERMESSAGE_TEXT_COLOR = "#FFFFFF"; // Text color for messages sent by the user
@@ -123,7 +123,7 @@ export const ALLOW_LANDING_PAGE = false; // Set to true to enable the landing pa
 export const ALLOW_AVATAR_BOT = false; // Set to true to enable the avatar for the bot
 export const ALLOW_PDF_PREVIEW = true; // Set to true to enable PDF preview
 export const ALLOW_VIDEO_PREVIEW = false; // Set to true to enable video preview
-export const ALLOW_CHAT_HISTORY = true; // Set to true to enable chat history
+export const ALLOW_CHAT_HISTORY = true; // Set to true to enable chat history and make sure to get the history from websocket with the ["history"] key
 // --------------------------------------------------------------------------------------------------------//
 // Styling under work, would reccomend keeping it false for now
 export const ALLOW_FAQ = true; // Set to true to enable the FAQs to be visible in Chat body 
