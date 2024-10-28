@@ -7,6 +7,7 @@ import { useMessage } from "../contexts/MessageContext";
 import createMessageBlock from "../utilities/createMessageBlock";
 import ReactMarkdown from "react-markdown";
 import { BOTMESSAGE_TEXT_COLOR } from "../utilities/constants";
+import DisplaySources from "./DisplaySources"; // Import the new DisplaySources component
 import {List, ListItem, Link } from "@mui/material";
 
 const StreamingMessage = ({ initialMessage, processing, setProcessing }) => {
@@ -53,20 +54,26 @@ const StreamingMessage = ({ initialMessage, processing, setProcessing }) => {
             setShowLoading(false);
           }
         }
-        if(parsedData.type === "sources") {
+        if (parsedData.type === "sources") {
           setSources(parsedData.sources);
-          const sourcesMessage = parsedData.sources.map((source, index) => `Paper ${index + 1}: ${source}`).join("\n");
+          console.log("Sources received: ", parsedData.sources);
+          
+          const sourcesMessage = parsedData.sources
+            .map((source, index) => `Paper ${index + 1}: ${source.url} (Score: ${source.score})`)
+            .join("\n");
+        
           const sourcesMessageBlock = createMessageBlock(
             sourcesMessage,
             "BOT",
             "SOURCES",
             "SENT"
           );
+        
           addMessage(sourcesMessageBlock);
           console.log("Sources message added to message list");
-          console.log("Message list with sources(hopefully): ", messageList);
-        
+          console.log("Message list with sources (hopefully): ", messageList);
         }
+        
 
         messageBuffer.current = "";
       } catch (e) {
@@ -122,7 +129,6 @@ const StreamingMessage = ({ initialMessage, processing, setProcessing }) => {
       {/* Primary message container */}
       <Grid container direction="row" justifyContent="flex-start" alignItems="flex-end">
         <Grid item>
-          {/* Avatar (bot image) */}
           <Avatar
             alt="Bot Avatar"
             src={BotAvatar}
@@ -174,37 +180,9 @@ const StreamingMessage = ({ initialMessage, processing, setProcessing }) => {
       </Grid>
 
       {/* Research papers container, aligned with message block */}
-      {sources.length > 0 && (
-        <Grid
-          container
-          justifyContent="flex-start"
-          mt={1}
-          sx={{
-            paddingLeft: '40px', // Adjust left padding to align with the main message container
-          }}
-        >
-          <Grid
-            item
-            className="botMessage"
-            sx={{
-              backgroundColor: (theme) => theme.palette.background.botMessage,
-            }}
-          >
-            <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR} gutterBottom>
-              Relevant research papers:
-            </Typography>
-            <List>
-              {sources.map((source, index) => (
-                <ListItem key={index} disableGutters>
-                  <Link href={source} target="_blank" rel="noopener">
-                    {`Paper ${index + 1}`}
-                  </Link>
-                </ListItem>
-              ))}
-            </List>
-          </Grid>
-        </Grid>
-      )}
+      <Grid container justifyContent="flex-start" mt={1} sx={{ paddingLeft: '40px' }}>
+        <DisplaySources sources={sources} /> {/* Use the new DisplaySources component */}
+      </Grid>
     </>
   );
 };
