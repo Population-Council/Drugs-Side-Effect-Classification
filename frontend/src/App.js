@@ -1,4 +1,3 @@
-// App.js
 import React, { useState } from 'react';
 import theme from './theme'; // Import your theme
 import { ThemeProvider } from '@mui/material/styles'; // Import ThemeProvider
@@ -15,6 +14,7 @@ import { TranscriptProvider } from './contexts/TranscriptContext';
 import { MessageProvider } from './contexts/MessageContext';
 import { ALLOW_PDF_PREVIEW, ALLOW_VIDEO_PREVIEW } from './utilities/constants';
 import { QuestionProvider } from './contexts/QuestionContext';
+import { ProcessingProvider } from './contexts/ProcessingContext';
 
 function MainApp() {
   const [showLeftNav, setLeftNav] = useState(true);
@@ -83,16 +83,17 @@ function App() {
   return (
     <LanguageProvider>
       <TranscriptProvider>
-      <QuestionProvider>
-        <MessageProvider>
-          <ThemeProvider theme={theme}>
-            {!languageSet && ALLOW_LANDING_PAGE ? <LandingPage /> : <MainApp />}
-          </ThemeProvider>
-        </MessageProvider>
+        <QuestionProvider>
+          <MessageProvider>
+            <ProcessingProvider>
+              <ThemeProvider theme={theme}>
+                {!languageSet && ALLOW_LANDING_PAGE ? <LandingPage /> : <MainApp />}
+              </ThemeProvider>
+            </ProcessingProvider>
+          </MessageProvider>
         </QuestionProvider>
       </TranscriptProvider>
     </LanguageProvider>
-
   );
 }
 

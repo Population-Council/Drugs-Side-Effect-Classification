@@ -12,12 +12,13 @@ import SpeechRecognitionComponent from './SpeechRecognition';
 import { FAQExamples } from './index';
 import { useMessage } from '../contexts/MessageContext';
 import { useQuestion } from '../contexts/QuestionContext';
+import { useProcessing } from '../contexts/ProcessingContext';
 import { USERMESSAGE_TEXT_COLOR } from '../utilities/constants';
 
 function ChatBody({ onFileUpload }) {
   const { messageList, addMessage } = useMessage();
   const { questionAsked, setQuestionAsked } = useQuestion();
-  const [processing, setProcessing] = useState(false);
+  const { processing, setProcessing } = useProcessing();
   const [message, setMessage] = useState('');
   const [cookies, setCookie] = useCookies(['userMessages']);
   const messagesEndRef = useRef(null);
