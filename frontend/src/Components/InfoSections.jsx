@@ -2,7 +2,8 @@
 import React from "react";
 import { Typography, Grid } from "@mui/material";
 import { useLanguage } from "../contexts/LanguageContext"; // Adjust the import path
-import { ABOUT_US_HEADER_BACKGROUND, ABOUT_US_TEXT, FAQ_HEADER_BACKGROUND, FAQ_TEXT, TEXT } from "../utilities/constants"; // Adjust the import path
+import { ABOUT_US_HEADER_BACKGROUND, ABOUT_US_TEXT, TEXT, DISPLAY_SEARCH_HISTORY } from "../utilities/constants"; // Adjust the import path
+import SearchHistory from "./SearchHistory.jsx"; // Import the new component
 
 function InfoSections() {
   const { language } = useLanguage();
@@ -19,20 +20,12 @@ function InfoSections() {
           {TEXT[language].ABOUT_US}
         </Typography>
       </Grid>
-      <Grid item>
-        <Typography variant="h6" sx={{ fontWeight: "bold" }} color={FAQ_HEADER_BACKGROUND}>
-          {TEXT[language].FAQ_TITLE}
-        </Typography>
-        <ul>
-          {TEXT[language].FAQS.map((question, index) => (
-            <li key={index}>
-              <Typography variant="subtitle1" color={FAQ_TEXT}>
-                {question}
-              </Typography>
-            </li>
-          ))}
-        </ul>
-      </Grid>
+      {DISPLAY_SEARCH_HISTORY && (
+        <Grid item>
+          {/* Add SearchHistory component here */}
+          <SearchHistory />
+        </Grid>
+      )}
     </>
   );
 }

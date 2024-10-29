@@ -1,14 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Grid, Avatar, Typography } from "@mui/material";
+import { Grid, Avatar, Typography, List, ListItem, Link, IconButton, Tooltip } from "@mui/material";
+import ContentCopyIcon from "@mui/icons-material/ContentCopy";
+import CheckIcon from "@mui/icons-material/Check";
 import BotAvatar from "../Assets/BotAvatar.svg";
 import LoadingAnimation from "../Assets/loading_animation.gif"; // Import the loading animation
-import { ALLOW_CHAT_HISTORY, WEBSOCKET_API, ALLOW_MARKDOWN_BOT } from "../utilities/constants";
+import { ALLOW_CHAT_HISTORY, WEBSOCKET_API, ALLOW_MARKDOWN_BOT, DISPLAY_SOURCES_BEDROCK_KB, BOTMESSAGE_TEXT_COLOR } from "../utilities/constants";
 import { useMessage } from "../contexts/MessageContext";
 import createMessageBlock from "../utilities/createMessageBlock";
 import ReactMarkdown from "react-markdown";
-import { BOTMESSAGE_TEXT_COLOR } from "../utilities/constants";
-import DisplaySources from "./DisplaySources"; // Import the new DisplaySources component
-import {List, ListItem, Link } from "@mui/material";
 
 const StreamingMessage = ({ initialMessage, processing, setProcessing }) => {
   const [responses, setResponses] = useState([]);
@@ -17,8 +16,7 @@ const StreamingMessage = ({ initialMessage, processing, setProcessing }) => {
   const messageBuffer = useRef("");
   const { messageList, addMessage } = useMessage();
   const [sources, setSources] = useState([]);
-
-
+  const [copySuccess, setCopySuccess] = useState(false);
 
   useEffect(() => {
     ws.current = new WebSocket(WEBSOCKET_API);
@@ -57,23 +55,22 @@ const StreamingMessage = ({ initialMessage, processing, setProcessing }) => {
         if (parsedData.type === "sources") {
           setSources(parsedData.sources);
           console.log("Sources received: ", parsedData.sources);
-          
+
           const sourcesMessage = parsedData.sources
-            .map((source, index) => `Paper ${index + 1}: ${source.url} (Score: ${source.score})`)
+            .map((source) => `${getFileNameFromUrl(source.url)} (Score: ${source.score}): ${source.url}`)
             .join("\n");
-        
+
           const sourcesMessageBlock = createMessageBlock(
             sourcesMessage,
             "BOT",
             "SOURCES",
             "SENT"
           );
-        
+
           addMessage(sourcesMessageBlock);
           console.log("Sources message added to message list");
           console.log("Message list with sources (hopefully): ", messageList);
         }
-        
 
         messageBuffer.current = "";
       } catch (e) {
@@ -122,7 +119,20 @@ const StreamingMessage = ({ initialMessage, processing, setProcessing }) => {
     }
   }, [processing]);
 
+  const getFileNameFromUrl = (url) => {
+    return url.substring(url.lastIndexOf("/") + 1);
+  };
 
+  const handleCopyToClipboard = () => {
+    const textToCopy = `${responses.join("")}${sources.length > 0 ? "\n\nSources:\n" + sources.map((source) => `${getFileNameFromUrl(source.url)} (Score: ${source.score}): ${source.url}`).join("\n") : ""}`;
+    navigator.clipboard.writeText(textToCopy).then(() => {
+      console.log("Message copied to clipboard");
+      setCopySuccess(true);
+      setTimeout(() => setCopySuccess(false), 3000);
+    }).catch((err) => {
+      console.error("Failed to copy: ", err);
+    });
+  };
 
   return (
     <>
@@ -142,15 +152,27 @@ const StreamingMessage = ({ initialMessage, processing, setProcessing }) => {
             }}
           />
         </Grid>
-
+  
         <Grid
           item
           className="botMessage"
           mt={1}
           sx={{
             backgroundColor: (theme) => theme.palette.background.botMessage,
+            position: "relative",
           }}
         >
+          {!processing && (
+            <Tooltip title={copySuccess ? "Message copied" : "Copy message to clipboard"}>
+              <IconButton
+                size="small"
+                onClick={handleCopyToClipboard}
+                sx={{ position: "absolute", top: 0, right: 0 }}
+              >
+                {copySuccess ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
+              </IconButton>
+            </Tooltip>
+          )}
           {processing ? (
             showLoading ? (
               <img src={LoadingAnimation} alt="Loading..." style={{ width: '50px', marginTop: '10px' }} />
@@ -176,12 +198,18 @@ const StreamingMessage = ({ initialMessage, processing, setProcessing }) => {
               </Typography>
             )
           )}
+          {DISPLAY_SOURCES_BEDROCK_KB && sources.length > 0 && (
+            <List sx={{ mt: 2 }}>
+              {sources.map((source, index) => (
+                <ListItem key={index}>
+                  <Link href={`${source.url}#page=${source.page}`} target="_blank" rel="noopener">
+                    {getFileNameFromUrl(source.url)} (Score: {source.score})
+                  </Link>
+                </ListItem>
+              ))}
+            </List>
+          )}
         </Grid>
-      </Grid>
-
-      {/* Research papers container, aligned with message block */}
-      <Grid container justifyContent="flex-start" mt={1} sx={{ paddingLeft: '40px' }}>
-        <DisplaySources sources={sources} /> {/* Use the new DisplaySources component */}
       </Grid>
     </>
   );

@@ -39,7 +39,7 @@ export const TEXT = {
     FAQS: [
       "What is the Population Council Mission?",
       "How does Population Council conduct its research?",
-      "In which countries does the Population Council work?",
+      "biological factors underlying Contraceptive-induced Menstrual Changes (CIMCs)",
       "How can I partner with the Population Council?",
       "What career opportunities or fellowships are available?"
     ],
@@ -124,9 +124,13 @@ export const ALLOW_AVATAR_BOT = false; // Set to true to enable the avatar for t
 export const ALLOW_PDF_PREVIEW = true; // Set to true to enable PDF preview
 export const ALLOW_VIDEO_PREVIEW = false; // Set to true to enable video preview
 export const ALLOW_CHAT_HISTORY = true; // Set to true to enable chat history and make sure to get the history from websocket with the ["history"] key
+export const DISPLAY_SOURCES_BEDROCK_KB = true; // Set to true to display sources from Bedrock KB
+export const DISPLAY_SEARCH_HISTORY = true; // Set to true to display search history
+
 // --------------------------------------------------------------------------------------------------------//
 // Styling under work, would reccomend keeping it false for now
 export const ALLOW_FAQ = true; // Set to true to enable the FAQs to be visible in Chat body 
+
 
 // VERY IMPORTANT
 // (If there is any)REMOVE THE POST PROCESSING IN SPEECH RECOGNITION TO DETECT CALVIN AS KELYVIN IN SPEECH RECOGNITION COMPONENT

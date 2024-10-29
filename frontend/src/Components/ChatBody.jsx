@@ -1,4 +1,5 @@
 import React, { useRef, useEffect, useState } from 'react';
+import { useCookies } from 'react-cookie';
 import { Box, Grid, Avatar, Typography } from '@mui/material';
 import Attachment from './Attachment';
 import ChatInput from './ChatInput';
@@ -10,13 +11,15 @@ import BotFileCheckReply from './BotFileCheckReply';
 import SpeechRecognitionComponent from './SpeechRecognition';
 import { FAQExamples } from './index';
 import { useMessage } from '../contexts/MessageContext';
+import { useQuestion } from '../contexts/QuestionContext';
 import { USERMESSAGE_TEXT_COLOR } from '../utilities/constants';
 
 function ChatBody({ onFileUpload }) {
   const { messageList, addMessage } = useMessage();
+  const { questionAsked, setQuestionAsked } = useQuestion();
   const [processing, setProcessing] = useState(false);
   const [message, setMessage] = useState('');
-  const [questionAsked, setQuestionAsked] = useState(false);
+  const [cookies, setCookie] = useCookies(['userMessages']);
   const messagesEndRef = useRef(null);
 
   useEffect(() => {
@@ -31,9 +34,13 @@ function ChatBody({ onFileUpload }) {
 
   const handleSendMessage = (message) => {
     setProcessing(true);
-    const newMessageBlock = createMessageBlock(message, 'USER', 'TEXT', 'SENT');
+    const timestamp = new Date().toISOString();
+    const newMessageBlock = createMessageBlock(message, 'USER', 'TEXT', 'SENT', null, timestamp);
     addMessage(newMessageBlock);
     setQuestionAsked(true);
+    const storedMessages = Array.isArray(cookies.userMessages) ? cookies.userMessages : [];
+    const updatedMessages = [...storedMessages, { message, timestamp }];
+    setCookie('userMessages', updatedMessages, { path: '/', maxAge: 604800 });
   };
 
   const handleFileUploadComplete = (file, fileStatus) => {
@@ -43,7 +50,8 @@ function ChatBody({ onFileUpload }) {
       'FILE',
       'SENT',
       file.name,
-      fileStatus
+      fileStatus,
+      new Date().toISOString()
     );
     addMessage(userMessageBlock);
 
@@ -57,7 +65,8 @@ function ChatBody({ onFileUpload }) {
       'FILE',
       'RECEIVED',
       file.name,
-      fileStatus
+      fileStatus,
+      new Date().toISOString()
     );
     addMessage(botMessageBlock);
 
