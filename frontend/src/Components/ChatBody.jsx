@@ -1,3 +1,4 @@
+// ChatBody.js
 import React, { useRef, useEffect, useState } from 'react';
 import { useCookies } from 'react-cookie';
 import { Box, Grid, Avatar, Typography } from '@mui/material';
@@ -34,47 +35,52 @@ function ChatBody({ onFileUpload }) {
   };
 
   const handleSendMessage = (message) => {
-    setProcessing(true);
-    const timestamp = new Date().toISOString();
-    const newMessageBlock = createMessageBlock(message, 'USER', 'TEXT', 'SENT', null, timestamp);
-    addMessage(newMessageBlock);
-    setQuestionAsked(true);
-    const storedMessages = Array.isArray(cookies.userMessages) ? cookies.userMessages : [];
-    const updatedMessages = [...storedMessages, { message, timestamp }];
-    setCookie('userMessages', updatedMessages, { path: '/', maxAge: 604800 });
+    if (!processing) {
+      setProcessing(true);
+      const timestamp = new Date().toISOString();
+      const newMessageBlock = createMessageBlock(message, 'USER', 'TEXT', 'SENT', null, timestamp);
+      addMessage(newMessageBlock);
+      setQuestionAsked(true);
+      const storedMessages = Array.isArray(cookies.userMessages) ? cookies.userMessages : [];
+      const updatedMessages = [...storedMessages, { message, timestamp }];
+      setCookie('userMessages', updatedMessages, { path: '/', maxAge: 604800 });
+    }
   };
 
   const handleFileUploadComplete = (file, fileStatus) => {
-    const userMessageBlock = createMessageBlock(
-      `File uploaded: ${file.name}`,
-      'USER',
-      'FILE',
-      'SENT',
-      file.name,
-      fileStatus,
-      new Date().toISOString()
-    );
-    addMessage(userMessageBlock);
+    if (!processing) {
+      setProcessing(true);
+      const userMessageBlock = createMessageBlock(
+        `File uploaded: ${file.name}`,
+        'USER',
+        'FILE',
+        'SENT',
+        file.name,
+        fileStatus,
+        new Date().toISOString()
+      );
+      addMessage(userMessageBlock);
 
-    const botMessageBlock = createMessageBlock(
-      fileStatus === 'File page limit check succeeded.'
-        ? 'Checking file size.'
-        : fileStatus === 'File size limit exceeded.'
-        ? 'File size limit exceeded. Please upload a smaller file.'
-        : 'Network Error. Please try again later.',
-      'BOT',
-      'FILE',
-      'RECEIVED',
-      file.name,
-      fileStatus,
-      new Date().toISOString()
-    );
-    addMessage(botMessageBlock);
+      const botMessageBlock = createMessageBlock(
+        fileStatus === 'File page limit check succeeded.'
+          ? 'Checking file size.'
+          : fileStatus === 'File size limit exceeded.'
+          ? 'File size limit exceeded. Please upload a smaller file.'
+          : 'Network Error. Please try again later.',
+        'BOT',
+        'FILE',
+        'RECEIVED',
+        file.name,
+        fileStatus,
+        new Date().toISOString()
+      );
+      addMessage(botMessageBlock);
 
-    setQuestionAsked(true);
+      setQuestionAsked(true);
 
-    if (onFileUpload && fileStatus === 'File page limit check succeeded.') {
-      onFileUpload(file, fileStatus);
+      if (onFileUpload && fileStatus === 'File page limit check succeeded.') {
+        onFileUpload(file, fileStatus);
+      }
     }
   };
 
@@ -93,7 +99,7 @@ function ChatBody({ onFileUpload }) {
             {msg.sentBy === 'USER' && msg.type === 'TEXT' ? (
               <>
                 <UserReply message={msg.message} />
-                <StreamingMessage initialMessage={msg.message} setProcessing={setProcessing} processing={processing} />
+                <StreamingMessage initialMessage={msg.message} />
               </>
             ) : msg.type === 'FILE' && msg.state === 'RECEIVED' ? (
               <BotFileCheckReply messageId={index} />
@@ -111,7 +117,7 @@ function ChatBody({ onFileUpload }) {
           <Attachment onFileUploadComplete={handleFileUploadComplete} />
         </Box>
         <Box sx={{ width: '100%' }} ml={2}>
-          <ChatInput onSendMessage={handleSendMessage} processing={processing} message={message} setMessage={setMessage} />
+          <ChatInput onSendMessage={handleSendMessage} />
         </Box>
       </Box>
     </Box>

@@ -1,3 +1,4 @@
+// StreamingMessage.js
 import React, { useState, useEffect, useRef } from "react";
 import { Grid, Avatar, Typography, List, ListItem, Link, IconButton, Tooltip } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
@@ -8,8 +9,9 @@ import { ALLOW_CHAT_HISTORY, WEBSOCKET_API, ALLOW_MARKDOWN_BOT, DISPLAY_SOURCES_
 import { useMessage } from "../contexts/MessageContext";
 import createMessageBlock from "../utilities/createMessageBlock";
 import ReactMarkdown from "react-markdown";
+import { useProcessing } from '../contexts/ProcessingContext';
 
-const StreamingMessage = ({ initialMessage, processing, setProcessing }) => {
+const StreamingMessage = ({ initialMessage }) => {
   const [responses, setResponses] = useState([]);
   const [showLoading, setShowLoading] = useState(true); // State to handle loading animation
   const ws = useRef(null);
@@ -17,6 +19,7 @@ const StreamingMessage = ({ initialMessage, processing, setProcessing }) => {
   const { messageList, addMessage } = useMessage();
   const [sources, setSources] = useState([]);
   const [copySuccess, setCopySuccess] = useState(false);
+  const { processing, setProcessing } = useProcessing();
 
   useEffect(() => {
     ws.current = new WebSocket(WEBSOCKET_API);
@@ -152,7 +155,7 @@ const StreamingMessage = ({ initialMessage, processing, setProcessing }) => {
             }}
           />
         </Grid>
-  
+    
         <Grid
           item
           className="botMessage"

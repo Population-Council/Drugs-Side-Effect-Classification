@@ -6,11 +6,13 @@ import HistoryIcon from "@mui/icons-material/History";
 import { format, isToday, isYesterday, subDays, startOfWeek, startOfMonth, isAfter } from "date-fns";
 import { useMessage } from '../contexts/MessageContext';
 import { useQuestion } from '../contexts/QuestionContext';
+import { useProcessing } from '../contexts/ProcessingContext';
 
 function SearchHistory() {
   const [cookies] = useCookies(["userMessages"]);
   const { addMessage } = useMessage();
   const { setQuestionAsked } = useQuestion();
+  const { processing, setProcessing } = useProcessing();
   const searchHistory = cookies.userMessages ? cookies.userMessages.map(msg => ({ date: new Date(msg.timestamp), query: msg.message })) : [];
 
   const sortedHistory = useMemo(() => {
@@ -60,15 +62,18 @@ function SearchHistory() {
   };
 
   const handleSearchClick = (query) => {
-    const newMessageBlock = {
-      message: query,
-      sentBy: 'USER',
-      type: 'TEXT',
-      state: 'SENT',
-      timestamp: new Date().toISOString()
-    };
-    addMessage(newMessageBlock);
-    setQuestionAsked(true);
+    if (!processing) {
+      setProcessing(true);
+      const newMessageBlock = {
+        message: query,
+        sentBy: 'USER',
+        type: 'TEXT',
+        state: 'SENT',
+        timestamp: new Date().toISOString()
+      };
+      addMessage(newMessageBlock);
+      setQuestionAsked(true);
+    }
   };
 
   const truncateQuery = (query, maxLength = 90) => {
