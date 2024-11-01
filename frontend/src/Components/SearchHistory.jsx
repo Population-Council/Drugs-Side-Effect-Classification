@@ -1,15 +1,16 @@
 import React, { useMemo, useState } from "react";
 import { useCookies } from "react-cookie";
-import { Accordion, AccordionSummary, AccordionDetails, Typography, Box, CircularProgress } from "@mui/material";
+import { Accordion, AccordionSummary, AccordionDetails, Typography, Box, CircularProgress, IconButton, Tooltip } from "@mui/material";
 import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
-import HistoryIcon from "@mui/icons-material/History";
+import CheckCircleIcon from "@mui/icons-material/CheckCircle";
+import DeleteIcon from "@mui/icons-material/Delete";
 import { format, isToday, isYesterday, subDays, startOfWeek, startOfMonth, isAfter } from "date-fns";
 import { useMessage } from '../contexts/MessageContext';
 import { useQuestion } from '../contexts/QuestionContext';
 import { useProcessing } from '../contexts/ProcessingContext';
 
 function SearchHistory() {
-  const [cookies] = useCookies(["userMessages"]);
+  const [cookies, setCookie, removeCookie] = useCookies(["userMessages"]);
   const { addMessage } = useMessage();
   const { setQuestionAsked } = useQuestion();
   const { processing, setProcessing } = useProcessing();
@@ -80,6 +81,16 @@ function SearchHistory() {
     return query.length > maxLength ? `${query.substring(0, maxLength)}...` : query;
   };
 
+  const [deleted, setDeleted] = useState(false);
+
+  const handleDeleteHistory = () => {
+    removeCookie("userMessages", { path: "/" });
+    setDeleted(true);
+    setTimeout(() => {
+      setDeleted(false);
+    }, 3000);
+  };
+
   return (
     <div>
       <Accordion defaultExpanded>
@@ -89,8 +100,19 @@ function SearchHistory() {
           id="search-history-header"
           sx={{ padding: '0 8px', minHeight: '48px', backgroundColor: '#f5f5f5', borderRadius: '8px' }}
         >
-          <HistoryIcon sx={{ marginRight: 1, color: "#3f51b5" }} />
           <Typography variant="h6" sx={{ fontWeight: 'bold', color: "#3f51b5" }}>Search History</Typography>
+          <Tooltip title={deleted ? "Deleted" : "Delete Search History"} arrow>
+            <IconButton 
+              onClick={handleDeleteHistory} 
+              sx={{ 
+                marginLeft: 'auto', 
+                color: deleted ? "#4caf50" : "#f44336", 
+                transition: 'color 0.3s ease-in-out'
+              }}
+            >
+              {deleted ? <CheckCircleIcon /> : <DeleteIcon />}
+            </IconButton>
+          </Tooltip>
         </AccordionSummary>
         <AccordionDetails 
           sx={{ 
