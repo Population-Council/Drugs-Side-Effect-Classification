@@ -6,17 +6,18 @@ import * as apigatewayv2_integrations from '@aws-cdk/aws-apigatewayv2-integratio
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import { bedrock } from '@cdklabs/generative-ai-cdk-constructs';
-// import * as amplify from '@aws-cdk/aws-amplify-alpha';
+import * as amplify from '@aws-cdk/aws-amplify-alpha';
 import { Construct } from 'constructs';
+import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 
+interface CdkBackendStackProps extends cdk.StackProps {
+  githubToken: string;
+}
 
 export class CdkBackendStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+  constructor(scope: Construct, id: string, props: CdkBackendStackProps) {
     super(scope, id, props);
 
-    // The code that defines your stack goes here
-
-    // example resource
     const kb = new bedrock.KnowledgeBase(this, 'pc-bedrock-knowledgebase', {
       embeddingsModel: bedrock.BedrockFoundationModel.TITAN_EMBED_TEXT_V2_1024,
       instruction: 'Use this knowledge base to answer questions about Research Papers',
@@ -96,7 +97,7 @@ export class CdkBackendStack extends cdk.Stack {
     }));
 
     // web-socket-handler Lambda function
-    const webSocketHandler = new lambda.Function(this, 'kp-web-socket-handler', {
+    const webSocketHandler = new lambda.Function(this, 'pc-web-socket-handler', {
       runtime: lambda.Runtime.PYTHON_3_12,
       code: lambda.Code.fromAsset('lambda/web-socket-handler'),
       handler: 'index.lambda_handler',
@@ -120,6 +121,64 @@ export class CdkBackendStack extends cdk.Stack {
       actions: ['execute-api:ManageConnections'],
       resources: [webSocketApiArn],
     }));
+
+    const githubToken = new secretsmanager.Secret(this, 'GitHubToken', {
+      secretName: 'pc-github-token',
+      description: 'GitHub Personal Access Token for Amplify',
+      secretStringValue: cdk.SecretValue.unsafePlainText(props.githubToken)
+    });
+
+    // Create the Amplify App
+    const amplifyApp = new amplify.App(this, 'PopulationCouncilReactApp', {
+      sourceCodeProvider: new amplify.GitHubSourceCodeProvider({
+        owner: 'ASUCICREPO',
+        repository: 'Drugs-Side-Effect-Classification',
+        oauthToken: githubToken.secretValue
+      }),
+      buildSpec: cdk.aws_codebuild.BuildSpec.fromObjectToYaml({
+        version: '1.0',
+        frontend: {
+          phases: {
+            preBuild: {
+              commands: [
+                'cd frontend',
+                'npm ci'
+              ]
+            },
+            build: {
+              commands: [
+                'npm run build'
+              ]
+            }
+          },
+          artifacts: {
+            baseDirectory: 'frontend/build',
+            files: [
+              '**/*'
+            ]
+          },
+          cache: {
+            paths: [
+              'frontend/node_modules/**/*'
+            ]
+          }
+        }
+      }),
+    });
+
+    // Add environment variables
+    amplifyApp.addEnvironment('REACT_APP_WEBSOCKET_API', webSocketStage.url);
+
+    // Add a branch
+    const mainBranch = amplifyApp.addBranch('main', {
+      autoBuild: true,
+      stage: 'PRODUCTION'
+    });
+
+    // Grant Amplify permission to read the secret
+    githubToken.grantRead(amplifyApp);
+
+
 
 
     // const syncKBLambda = new lambda.Function(this, 'syncKBLambda', {
@@ -187,6 +246,16 @@ export class CdkBackendStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'WebSocketURL', {
       value: webSocketStage.callbackUrl,
       description: 'WebSocket URL'
+    });
+
+    new cdk.CfnOutput(this, 'GitHubTokenSecretArn', {
+      value: githubToken.secretArn,
+      description: 'ARN of the gitHub Token Secret',
+    });
+
+    new cdk.CfnOutput(this, 'AmplifyAppURL', {
+      value: `https://${mainBranch.branchName}.${amplifyApp.defaultDomain}`,
+      description: 'Amplify Application URL'
     });
 
 

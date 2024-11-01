@@ -119,7 +119,7 @@ function SearchHistory() {
             padding: '16px', 
             backgroundColor: '#ffffff', 
             borderRadius: '8px', 
-            maxHeight: '400px', 
+            maxHeight: { xs: '150px', sm: '200px', md: '250px', lg: '300px' }, 
             overflowY: 'auto' 
           }}
           onScroll={handleScroll}
