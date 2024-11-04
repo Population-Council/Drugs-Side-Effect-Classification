@@ -132,7 +132,7 @@ function UserReply({ message }) {
       <Grid item className='userMessage' sx={{ backgroundColor: (theme) => theme.palette.background.userMessage }}>
         <Typography variant='body2' color={USERMESSAGE_TEXT_COLOR}>{message}</Typography>
       </Grid>
-      <Grid item>
+      <Grid item marginRight={"15px"}>
         <Avatar alt={'User Profile Pic'} src={UserAvatar} />
       </Grid>
     </Grid>

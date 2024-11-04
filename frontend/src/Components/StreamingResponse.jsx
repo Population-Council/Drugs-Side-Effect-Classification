@@ -206,7 +206,7 @@ const StreamingMessage = ({ initialMessage }) => {
               {sources.map((source, index) => (
                 <ListItem key={index}>
                   <Link href={`${source.url}#page=${source.page}`} target="_blank" rel="noopener">
-                    {getFileNameFromUrl(source.url)} (Score: {source.score})
+                    {getFileNameFromUrl(source.url)} (Score: {source.score.toFixed(2)})
                   </Link>
                 </ListItem>
               ))}
