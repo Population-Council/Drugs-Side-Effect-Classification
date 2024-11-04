@@ -106,7 +106,7 @@ function SearchHistory() {
               onClick={handleDeleteHistory} 
               sx={{ 
                 marginLeft: 'auto', 
-                color: deleted ? "#4caf50" : "#f44336", 
+                color: deleted ? "#4caf50" : "#003A5D", 
                 transition: 'color 0.3s ease-in-out'
               }}
             >
