@@ -44,6 +44,22 @@ def extract_sources(kb_results):
     
     return processed_sources
 
+def is_relevant(sources):
+    """
+    Check if the top source score is above 0.4.
+
+    Args:
+        sources (list): A list of dictionaries representing the sources, each containing a 'score' key.
+
+    Returns:
+        bool: True if the top source score is above 0.4, otherwise False.
+    """
+    if not sources:
+        return False
+    
+    # Sort sources by score in descending order
+    top_score = sources[0].get('score', 0)
+    return top_score > 0.4
 
 
 def lambda_handler(event, context):
@@ -155,10 +171,11 @@ def lambda_handler(event, context):
                     'text': message_text,
                 }
                 gateway.post_to_connection(ConnectionId=connectionId, Data=json.dumps(data))
-                sources_data = {
-                    'statusCode': 200,
-                    'type': 'sources',
-                    'sources': sources,
-                }
-        gateway.post_to_connection(ConnectionId=connectionId, Data=json.dumps(sources_data))
+        sources_data = {
+            'statusCode': 200,
+            'type': 'sources',
+            'sources': sources,
+        }
+        if is_relevant(sources):
+            gateway.post_to_connection(ConnectionId=connectionId, Data=json.dumps(sources_data))
     return "Success"
