@@ -61,11 +61,29 @@ def is_relevant(sources):
     top_score = sources[0].get('score', 0)
     return top_score > 0.4
 
+def transform_history(history, limit=25):
+    transformed = []
+    for entry in history[-limit:]:  # Only take the last 'limit' entries
+        role = 'user' if entry.get('sentBy') == 'USER' else 'assistant'
+        content = entry.get('message', '')
+        if entry.get('type') == 'TEXT':
+            transformed.append({
+                "role": role,
+                "content": {
+                    "text": content
+                }
+            })
+    return transformed
+
 
 def lambda_handler(event, context):
     # Retrieve the Knowledge Base ID from environment variables
     connectionId = event["connectionId"]
     prompt = event["prompt"]
+    # Retrieve and deserialize history
+    history = event.get("history", "[]")  # Default to an empty list if not provided
+    print(f"History: {history}")
+    # transformed_history = transform_history(history)
     kb_id = os.environ['KNOWLEDGE_BASE_ID']
     url = os.environ['URL']
     
@@ -76,7 +94,7 @@ def lambda_handler(event, context):
             'statusCode': 400,
             'body': json.dumps({'error': 'No prompt provided in the event.'})
         }
-    
+
     print(f"Finding in Knowledge Base with ID: [{kb_id}]...")
     kb_response = knowledge_base_retrieval(prompt, kb_id)
 
@@ -96,81 +114,59 @@ def lambda_handler(event, context):
         User's question: {prompt}
         """
     bedrock = boto3.client(service_name="bedrock-runtime", region_name="us-west-2")
-
-    # Prepare request parameters
-    kwargs = {
-        "modelId": "anthropic.claude-3-5-sonnet-20241022-v2:0",
-        "contentType": "application/json",
-        "accept": "application/json",
-        "body": json.dumps({
-            "anthropic_version": "bedrock-2023-05-31",
-            "max_tokens": 1000,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": full_prompt
-                        }
-                    ]
-                }
-            ]
-        })
+    message = {
+        "role": "user",
+        "content": [
+            {
+                "text": full_prompt
+            }
+        ]
     }
+    messages = [message]
     
-    print(f"Sending query to LLM using Converse API...")
+    print(f"Sending query to LLM using Converse API...{messages}")
     sources = extract_sources(kb_response)
     print(f"Extracted sources: {sources}")
 
     # Invoke the Converse API
-    response = bedrock.invoke_model_with_response_stream(**kwargs)
+    response = bedrock.converse_stream(
+        modelId="anthropic.claude-3-5-sonnet-20241022-v2:0",
+        messages=messages,
+    )
     print("got response from bedrock")
     temp_holder = ""
-    stream = response.get('body')
+    print(f"Response from Converse API: {response}")
+    stream = response.get('stream')
     if stream:
-
-        #for each returned token from the model:
-        for token in stream:
-
-            #The "chunk" contains the model-specific response
-            chunk = token.get('chunk')
-            if chunk:
-                
-                #Decode the LLm response body from bytes
-                chunk_text = json.loads(chunk['bytes'].decode('utf-8'))
-                
-                #Construct the response body based on the LLM response, (Where the generated text starts/stops)
-                if chunk_text['type'] == "content_block_start":
-                    block_type = "start"
+        for event in stream:
+            if 'messageStart' in event:
+                block_type = "start"
+                message_text = ""    
+            elif 'contentBlockDelta' in event:
+                block_type = "delta"
+                message_text = event['contentBlockDelta']['delta']['text']
+                if "SOURCE" in message_text:
+                    temp_holder = message_text
                     message_text = ""
-                    
-                elif chunk_text['type'] == "content_block_delta":
-                    block_type = "delta"
-                    message_text = chunk_text['delta']['text']
-
-                    if "SOURCE" in message_text:
-                        temp_holder = message_text
-                        message_text = ""
-                    else:
-                        message_text = temp_holder + message_text
-                        temp_holder = ""      
-                    
-                elif chunk_text['type'] == "content_block_stop":
-                    block_type = "end"
-                    message_text = ""
-
                 else:
-                    block_type = "blank"
-                    message_text = ""
+                    message_text = temp_holder + message_text
+                    temp_holder = ""      
                 
-                #Send the response body back through the gateway to the client    
-                data = {
-                    'statusCode': 200,
-                    'type': block_type,
-                    'text': message_text,
-                }
-                gateway.post_to_connection(ConnectionId=connectionId, Data=json.dumps(data))
+            elif 'messageStop' in event:
+                block_type = "end"
+                message_text = ""
+
+            else:
+                block_type = "blank"
+                message_text = ""
+            
+            #Send the response body back through the gateway to the client    
+            data = {
+                'statusCode': 200,
+                'type': block_type,
+                'text': message_text,
+            }
+            gateway.post_to_connection(ConnectionId=connectionId, Data=json.dumps(data))
         sources_data = {
             'statusCode': 200,
             'type': 'sources',

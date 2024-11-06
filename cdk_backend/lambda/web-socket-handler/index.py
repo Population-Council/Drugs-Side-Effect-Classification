@@ -9,16 +9,22 @@ def handle_message(event, connection_id):
     response_function_arn = os.environ['RESPONSE_FUNCTION_ARN']
 
     prompt = json.loads(event.get('body', '{}')).get('prompt')
-    
-    
-    print("Prompt from user: [" + prompt + "]")
+    # print("Complete Event:", json.dumps(event, indent=2))
+    # Extract and process history
+    body_str = event.get('body', '{}')
+    body = json.loads(body_str)
+    history = body.get('history', [])
+        
+    if not isinstance(history, list):
+        logger.warning(f"Expected 'history' to be a list, but got {type(history)}. Setting history to an empty list.")
+        history = []
     
     input = {
         "prompt": prompt,
         "connectionId": connection_id,
-        
+        "history": history    
     }
-
+    print(input)
     lambda_client.invoke(
         FunctionName=response_function_arn,
         InvocationType='Event',
