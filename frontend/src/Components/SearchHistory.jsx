@@ -93,20 +93,28 @@ function SearchHistory() {
 
   return (
     <div>
-      <Accordion defaultExpanded>
+      <Accordion defaultExpanded sx={{ borderRadius: '4px', overflow: 'hidden' }}>
         <AccordionSummary
-          expandIcon={<ExpandMoreIcon sx={{ color: "#3f51b5" }} />}
+          expandIcon={<ExpandMoreIcon sx={{ color: "#FFFFFF" }} />}
           aria-controls="search-history-content"
           id="search-history-header"
-          sx={{ padding: '0 8px', minHeight: '48px', backgroundColor: '#f5f5f5', borderRadius: '8px' }}
+          sx={{
+            padding: '0 8px',
+            minHeight: '48px',
+            backgroundColor: '#003A5D',
+            borderRadius: '4px',
+            "& .MuiAccordionSummary-content": {
+              margin: 0 // Ensures there is no extra margin that could cause overflow
+            }
+          }}
         >
-          <Typography variant="h6" sx={{ fontWeight: 'bold', color: "#3f51b5" }}>Search History</Typography>
+          <Typography variant="h6" sx={{ fontWeight: 'bold', color: "#FFFFFF" }}>Search History</Typography>
           <Tooltip title={deleted ? "Deleted" : "Delete Search History"} arrow>
             <IconButton 
               onClick={handleDeleteHistory} 
               sx={{ 
                 marginLeft: 'auto', 
-                color: deleted ? "#4caf50" : "#003A5D", 
+                color: deleted ? "#4caf50" : "#FFFFFF", 
                 transition: 'color 0.3s ease-in-out'
               }}
             >
@@ -117,17 +125,18 @@ function SearchHistory() {
         <AccordionDetails 
           sx={{ 
             padding: '16px', 
-            backgroundColor: '#ffffff', 
-            borderRadius: '8px', 
+            backgroundColor: '#003A5D', 
+            borderRadius: '4px',
             maxHeight: { xs: '150px', sm: '200px', md: '250px', lg: '300px' }, 
-            overflowY: 'auto' 
+            overflowY: 'auto', 
+            overflowX: 'hidden' // Remove horizontal overflow to prevent triangle artifacts
           }}
           onScroll={handleScroll}
         >
           {sortedHistory.map((section, index) => (
             section.data.length > 0 && (
               <div key={index}>
-                <Typography variant="subtitle1" sx={{ fontWeight: "bold", marginTop: 2, color: "#3f51b5" }}>
+                <Typography variant="subtitle1" sx={{ fontWeight: "bold", marginTop: 2, color: "#FFFFFF" }}>
                   {section.title}
                 </Typography>
                 <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, marginTop: 1 }}>
@@ -144,11 +153,11 @@ function SearchHistory() {
                           transform: 'scale(1.1)',
                           boxShadow: 6,
                         },
-                        backgroundColor: '#e3f2fd',
+                        backgroundColor: '#003A5D',
                         cursor: 'pointer'
                       }}
                     >
-                      <Typography variant="body1" sx={{ color: "#0d47a1" }}>{truncateQuery(search)}</Typography>
+                      <Typography variant="body1" sx={{ color: "#FFFFFF" }}>{truncateQuery(search)}</Typography>
                     </Box>
                   ))}
                 </Box>

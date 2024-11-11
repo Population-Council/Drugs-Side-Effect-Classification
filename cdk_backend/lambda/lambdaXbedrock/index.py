@@ -63,17 +63,61 @@ def is_relevant(sources):
 
 def transform_history(history, limit=25):
     transformed = []
+    last_role = None  # To track the last role added
+    user_found, assistant_found = False, False
+    pending_sources = None  # To temporarily hold SOURCES messages
+
     for entry in history[-limit:]:  # Only take the last 'limit' entries
         role = 'user' if entry.get('sentBy') == 'USER' else 'assistant'
         content = entry.get('message', '')
+
+        if entry.get('type') == 'SOURCES':
+            # Store SOURCES to append to the previous assistant response
+            pending_sources = content
+            continue
+
+        if role == 'user':
+            user_found = True
+        elif role == 'assistant':
+            assistant_found = True
+
         if entry.get('type') == 'TEXT':
+            # Append pending sources to the last assistant response, if any
+            if pending_sources and last_role == 'assistant':
+                transformed[-1]['content'][0]['text'] += f"\n\nSources:\n{pending_sources}"
+                pending_sources = None
+
+            # Skip adding duplicate roles in sequence
+            if role == last_role:
+                continue
+
             transformed.append({
                 "role": role,
-                "content": {
-                    "text": content
-                }
+                "content": [
+                    {
+                        "text": content
+                    }
+                ]
             })
+            last_role = role  # Update the last role
+
+    # Handle any remaining SOURCES if not yet added
+    if pending_sources and last_role == 'assistant':
+        transformed[-1]['content'][0]['text'] += f"\n\nSources:\n{pending_sources}"
+
+    # If there are non-alternating entries, only keep relevant ones
+    if len(transformed) > 1 and transformed[-1]['role'] == last_role:
+        transformed.pop()  # Skip the last one if redundant
+
+    # If the history only contains one role, skip it since it's being sent separately
+    if not (user_found and assistant_found):
+        return []
+
     return transformed
+
+
+
+
 
 
 def lambda_handler(event, context):
@@ -83,7 +127,8 @@ def lambda_handler(event, context):
     # Retrieve and deserialize history
     history = event.get("history", "[]")  # Default to an empty list if not provided
     print(f"History: {history}")
-    # transformed_history = transform_history(history)
+    transformed_history = transform_history(history)
+    print(f"Transformed History: {transformed_history}")
     kb_id = os.environ['KNOWLEDGE_BASE_ID']
     url = os.environ['URL']
     
@@ -122,7 +167,7 @@ def lambda_handler(event, context):
             }
         ]
     }
-    messages = [message]
+    messages = transformed_history + [message]
     
     print(f"Sending query to LLM using Converse API...{messages}")
     sources = extract_sources(kb_response)
