@@ -129,7 +129,7 @@ export const DISPLAY_SEARCH_HISTORY = true; // Set to true to display search his
 
 // --------------------------------------------------------------------------------------------------------//
 // Styling under work, would reccomend keeping it false for now
-export const ALLOW_FAQ = true; // Set to true to enable the FAQs to be visible in Chat body 
+export const ALLOW_FAQ = false; // Set to true to enable the FAQs to be visible in Chat body 
 
 
 // VERY IMPORTANT
