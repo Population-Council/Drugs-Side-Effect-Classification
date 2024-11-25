@@ -12,7 +12,7 @@ This repository contains a research assistant chatbot system that allows users t
 
 ## Architecture Diagram
 
-![Architecture Diagram](path/to/architecture_diagram.png)
+![Architecture Diagram](PopulationCouncilArchitectureDiagram.drawio.png)
 
 ### Overview
 
@@ -67,7 +67,7 @@ git clone <GitHub Repository URL>
 
 #### 2. Fork the Repository
 
-Fork the repository in your GitHub environment and change the owner name in `backend-stack.tsx` to enable access via Amplify.
+Fork the repository in your GitHub environment and change the owner name in `cdk_backend/lib/cdk_backend-stack.ts` at line 134 to replace `owner: 'ASUCICREPO'` with your GitHub username to enable access via Amplify.
 
 #### 3. Directory Structure
 
