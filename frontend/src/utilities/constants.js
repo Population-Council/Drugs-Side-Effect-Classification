@@ -44,7 +44,7 @@ export const TEXT = {
       "What career opportunities or fellowships are available?"
     ],
     CHAT_HEADER_TITLE: "Population Council Research Assistant",
-    CHAT_INPUT_PLACEHOLDER: "Type a Query...",
+    CHAT_INPUT_PLACEHOLDER: "Type a question...",
     HELPER_TEXT: "Cannot send empty message",
     SPEECH_RECOGNITION_START: "Start Listening",
     SPEECH_RECOGNITION_STOP: "Stop Listening",
