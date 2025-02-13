@@ -93,7 +93,9 @@ function SearchHistory() {
 
   return (
     <div>
-      <Accordion defaultExpanded sx={{ borderRadius: '4px', overflow: 'hidden' }}>
+      <Accordion 
+      defaultExpanded 
+      sx={{ backgroundColor: '#003A5D', borderRadius: '4px', overflow: 'hidden' }}>
         <AccordionSummary
           expandIcon={<ExpandMoreIcon sx={{ color: "#FFFFFF" }} />}
           aria-controls="search-history-content"
