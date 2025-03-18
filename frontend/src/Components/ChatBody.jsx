@@ -16,7 +16,7 @@ import { useQuestion } from '../contexts/QuestionContext';
 import { useProcessing } from '../contexts/ProcessingContext';
 import { USERMESSAGE_TEXT_COLOR } from '../utilities/constants';
 
-function ChatBody({ onFileUpload }) {
+function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
   const { messageList, addMessage } = useMessage();
   const { questionAsked, setQuestionAsked } = useQuestion();
   const { processing, setProcessing } = useProcessing();
@@ -89,8 +89,25 @@ function ChatBody({ onFileUpload }) {
   };
 
   return (
-    <Box display='flex' flexDirection='column' justifyContent='space-between' className='appHeight100 appWidth100'>
-      <Box flex={1} overflow='auto' className='chatScrollContainer'>
+    <Box 
+      sx={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: '100%',
+        width: '100%',
+        overflow: 'hidden',
+        margin: 0,
+        padding: 0
+      }}
+    >
+      {/* Messages Area */}
+      <Box 
+        sx={{
+          flexGrow: 1,
+          overflow: 'auto',
+          mb: 2,
+        }}
+      >
         <Box sx={{ display: ALLOW_FAQ ? 'flex' : 'none' }}>
           {!questionAsked && <FAQExamples onPromptClick={handlePromptClick} />}
         </Box>
@@ -109,15 +126,28 @@ function ChatBody({ onFileUpload }) {
         <div ref={messagesEndRef} />
       </Box>
 
-      <Box display='flex' justifyContent='space-between' alignItems='flex-end' sx={{ flexShrink: 0 }}>
+      {/* Input Area */}
+      <Box 
+        sx={{ 
+          display: 'flex', 
+          flexShrink: 0, 
+          alignItems: 'flex-end', 
+          mb: 0,
+          width: '100%'
+        }}
+      >
         <Box sx={{ display: ALLOW_VOICE_RECOGNITION ? 'flex' : 'none' }}>
           <SpeechRecognitionComponent setMessage={setMessage} getMessage={() => message} />
         </Box>
         <Box sx={{ display: ALLOW_FILE_UPLOAD ? 'flex' : 'none' }}>
           <Attachment onFileUploadComplete={handleFileUploadComplete} />
         </Box>
-        <Box sx={{ width: '100%' }} ml={2}>
-          <ChatInput onSendMessage={handleSendMessage} />
+        <Box sx={{ width: '100%', ml: 1 }}>
+          <ChatInput 
+            onSendMessage={handleSendMessage} 
+            showLeftNav={showLeftNav} 
+            setLeftNav={setLeftNav} 
+          />
         </Box>
       </Box>
     </Box>
