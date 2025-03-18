@@ -185,26 +185,4 @@ function App() {
 
 export default App;
 
-function App() {
-  const [cookies] = useCookies(['language']);
-  const languageSet = Boolean(cookies.language);
-
-  return (
-    <LanguageProvider>
-      <TranscriptProvider>
-        <QuestionProvider>
-          <MessageProvider>
-            <ProcessingProvider>
-              <ThemeProvider theme={theme}>
-                {!languageSet && ALLOW_LANDING_PAGE ? <LandingPage /> : <MainApp />}
-              </ThemeProvider>
-            </ProcessingProvider>
-          </MessageProvider>
-        </QuestionProvider>
-      </TranscriptProvider>
-    </LanguageProvider>
-  );
-}
-
-export default App;
 
