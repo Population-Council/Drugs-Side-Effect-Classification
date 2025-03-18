@@ -23,6 +23,27 @@ function MainApp() {
   const [fileType, setFileType] = useState(null);
   const [isMobile, setIsMobile] = useState(false);
 
+  // Handle mobile viewport height (accounting for browser chrome)
+  useEffect(() => {
+    // Function to update CSS variable with current viewport height
+    const setAppHeight = () => {
+      const vh = window.innerHeight * 0.01;
+      document.documentElement.style.setProperty('--vh', `${vh}px`);
+    };
+
+    // Set the height initially
+    setAppHeight();
+
+    // Update height on resize and orientation change
+    window.addEventListener('resize', setAppHeight);
+    window.addEventListener('orientationchange', setAppHeight);
+
+    return () => {
+      window.removeEventListener('resize', setAppHeight);
+      window.removeEventListener('orientationchange', setAppHeight);
+    };
+  }, []);
+
   // Check if the screen is mobile size
   useEffect(() => {
     const checkIsMobile = () => {
@@ -63,7 +84,8 @@ function MainApp() {
   return (
     <Box 
       sx={{ 
-        height: '100vh',
+        height: '100vh', // Fallback
+        height: 'calc(var(--vh, 1vh) * 100)', // Mobile-friendly height
         display: 'flex',
         flexDirection: 'column',
         margin: 0,
@@ -82,7 +104,7 @@ function MainApp() {
           flexGrow: 1,
           display: 'flex',
           overflow: 'hidden',
-          backgroundColor: isMobile ? 'inherit' : 'inherit',
+          backgroundColor: isMobile ? 'red' : 'inherit',
           minHeight: 0 // This is critical for flexbox to work properly
         }}
       >
@@ -162,3 +184,27 @@ function App() {
 }
 
 export default App;
+
+function App() {
+  const [cookies] = useCookies(['language']);
+  const languageSet = Boolean(cookies.language);
+
+  return (
+    <LanguageProvider>
+      <TranscriptProvider>
+        <QuestionProvider>
+          <MessageProvider>
+            <ProcessingProvider>
+              <ThemeProvider theme={theme}>
+                {!languageSet && ALLOW_LANDING_PAGE ? <LandingPage /> : <MainApp />}
+              </ThemeProvider>
+            </ProcessingProvider>
+          </MessageProvider>
+        </QuestionProvider>
+      </TranscriptProvider>
+    </LanguageProvider>
+  );
+}
+
+export default App;
+
