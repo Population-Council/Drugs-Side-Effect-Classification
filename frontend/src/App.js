@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import theme from './theme'; // Import your theme
 import { ThemeProvider } from '@mui/material/styles'; // Import ThemeProvider
-import Grid from '@mui/material/Grid';
+import Box from '@mui/material/Box';
 import AppHeader from './Components/AppHeader';
 import LeftNav from './Components/LeftNav';
 import ChatHeader from './Components/ChatHeader';
@@ -9,13 +9,12 @@ import ChatBody from './Components/ChatBody';
 import { LanguageProvider } from './contexts/LanguageContext'; // Adjust the import path
 import LandingPage from './Components/LandingPage';
 import { useCookies } from 'react-cookie';
-import { ALLOW_LANDING_PAGE } from './utilities/constants';
+import { ALLOW_LANDING_PAGE, ALLOW_PDF_PREVIEW, ALLOW_VIDEO_PREVIEW } from './utilities/constants';
 import { TranscriptProvider } from './contexts/TranscriptContext';
 import { MessageProvider } from './contexts/MessageContext';
-import { ALLOW_PDF_PREVIEW, ALLOW_VIDEO_PREVIEW } from './utilities/constants';
 import { QuestionProvider } from './contexts/QuestionContext';
 import { ProcessingProvider } from './contexts/ProcessingContext';
-import Box from '@mui/material/Box';
+import { RoleProvider } from './contexts/RoleContext'; // Add RoleProvider import
 
 function MainApp() {
   const [showLeftNav, setLeftNav] = useState(true);
@@ -172,9 +171,11 @@ function App() {
         <QuestionProvider>
           <MessageProvider>
             <ProcessingProvider>
-              <ThemeProvider theme={theme}>
-                {!languageSet && ALLOW_LANDING_PAGE ? <LandingPage /> : <MainApp />}
-              </ThemeProvider>
+              <RoleProvider> {/* Add RoleProvider wrapper */}
+                <ThemeProvider theme={theme}>
+                  {!languageSet && ALLOW_LANDING_PAGE ? <LandingPage /> : <MainApp />}
+                </ThemeProvider>
+              </RoleProvider>
             </ProcessingProvider>
           </MessageProvider>
         </QuestionProvider>
@@ -184,5 +185,3 @@ function App() {
 }
 
 export default App;
-
-

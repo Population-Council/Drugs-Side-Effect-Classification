@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
-import { 
-  Box, 
-  Typography, 
-  RadioGroup, 
-  FormControlLabel, 
-  Radio, 
+import React from 'react';
+import {
+  Box,
+  Typography,
+  RadioGroup,
+  FormControlLabel,
+  Radio,
   Paper,
   styled
 } from '@mui/material';
+import { useRole } from '../contexts/RoleContext';
 
 // Custom styled Radio button for better visibility on dark background
 const StyledRadio = styled(Radio)(({ theme }) => ({
@@ -28,12 +29,12 @@ const StyledFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
 }));
 
 function WhoAmI() {
-  const [selectedRole, setSelectedRole] = useState('researchAssistant');
-
+  const { selectedRole, setSelectedRole } = useRole();
+  
   const handleRoleChange = (event) => {
     setSelectedRole(event.target.value);
   };
-
+  
   return (
     <Paper
       elevation={0}
@@ -44,10 +45,10 @@ function WhoAmI() {
         marginBottom: '16px',
       }}
     >
-      <Typography 
-        variant="h6" 
-        sx={{ 
-          fontWeight: 'bold', 
+      <Typography
+        variant="h6"
+        sx={{
+          fontWeight: 'bold',
           color: '#FFFFFF',
           marginBottom: '12px',
         }}
@@ -61,20 +62,20 @@ function WhoAmI() {
         value={selectedRole}
         onChange={handleRoleChange}
       >
-        <StyledFormControlLabel 
-          value="researchAssistant" 
-          control={<StyledRadio />} 
-          label="Research Assistant" 
+        <StyledFormControlLabel
+          value="researchAssistant"
+          control={<StyledRadio />}
+          label="Research Assistant"
         />
-        <StyledFormControlLabel 
-          value="softwareEngineer" 
-          control={<StyledRadio />} 
-          label="Software Engineer" 
+        <StyledFormControlLabel
+          value="softwareEngineer"
+          control={<StyledRadio />}
+          label="Software Engineer"
         />
-        <StyledFormControlLabel 
-          value="genderYouthExpert" 
-          control={<StyledRadio />} 
-          label="Gender and Youth Expert" 
+        <StyledFormControlLabel
+          value="genderYouthExpert"
+          control={<StyledRadio />}
+          label="Gender and Youth Expert"
         />
       </RadioGroup>
     </Paper>
