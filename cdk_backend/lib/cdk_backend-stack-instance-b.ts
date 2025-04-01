@@ -1,11 +1,11 @@
 import * as cdk from 'aws-cdk-lib';
-import * as lambda from 'aws-cdk-lib/aws-lambda';
-import * as apigatewayv2 from '@aws-cdk/aws-apigatewayv2-alpha'; // Use alpha module for WebSocketApi
-import * as apigatewayv2_integrations from '@aws-cdk/aws-apigatewayv2-integrations-alpha'; // Use alpha module for integrations
+import * as lambda from 'aws-cdk-lib/aws-lambda'; // Make sure this is imported
+import * as apigatewayv2 from '@aws-cdk/aws-apigatewayv2-alpha';
+import * as apigatewayv2_integrations from '@aws-cdk/aws-apigatewayv2-integrations-alpha';
 import * as iam from 'aws-cdk-lib/aws-iam';
 import * as s3 from 'aws-cdk-lib/aws-s3';
 import { bedrock } from '@cdklabs/generative-ai-cdk-constructs';
-import * as amplify from '@aws-cdk/aws-amplify-alpha'; // Use alpha module for Amplify App
+import * as amplify from '@aws-cdk/aws-amplify-alpha';
 import * as secretsmanager from 'aws-cdk-lib/aws-secretsmanager';
 import * as codebuild from 'aws-cdk-lib/aws-codebuild';
 import { Construct } from 'constructs';
@@ -20,12 +20,11 @@ export class CdkBackendStackInstanceB extends cdk.Stack {
 
     // --- Knowledge Base Setup ---
     const kb = new bedrock.KnowledgeBase(this, 'kb-instanceB', {
-      embeddingsModel: bedrock.BedrockFoundationModel.TITAN_EMBED_TEXT_V1, // *** NOTE: Make sure this matches the model used during ingestion ***
+      embeddingsModel: bedrock.BedrockFoundationModel.TITAN_EMBED_TEXT_V1,
       instruction: 'Knowledge base for Litigation B',
     });
 
     // --- S3 Bucket Reference ---
-    // Use the exact name provided in your frontend info
     const bucketB = s3.Bucket.fromBucketName(
       this,
       'bucket-instanceB',
@@ -36,22 +35,34 @@ export class CdkBackendStackInstanceB extends cdk.Stack {
     const dataSourceB = new bedrock.S3DataSource(this, 'datasource-instanceB', {
        bucket: bucketB,
        knowledgeBase: kb,
-       chunkingStrategy: bedrock.ChunkingStrategy.DEFAULT, // Or FIXED_SIZE if you prefer
-       // Optional: maxTokens, overlapPercentage
+       chunkingStrategy: bedrock.ChunkingStrategy.DEFAULT,
      });
+
+    // Define the Connect Handler Lambda (From previous step)
+    const connectHandler = new lambda.Function(this, 'connect-handler-instanceB', {
+        runtime: lambda.Runtime.PYTHON_3_12,
+        handler: 'index.lambda_handler',
+        code: lambda.Code.fromAsset('lambda/connect-handler'),
+        timeout: cdk.Duration.seconds(10),
+    });
 
     // --- WebSocket API Setup ---
     const webSocketApi = new apigatewayv2.WebSocketApi(this, 'ws-api-instanceB', {
       apiName: 'ws-api-instanceB',
-      // Define routes needed - $connect, $disconnect, $default, sendMessage
-      connectRouteOptions: { integration: new apigatewayv2_integrations.WebSocketMockIntegration('connect')}, // Example mock integration
-      disconnectRouteOptions: { integration: new apigatewayv2_integrations.WebSocketMockIntegration('disconnect') }, // Example mock integration
-      defaultRouteOptions: { integration: new apigatewayv2_integrations.WebSocketMockIntegration('default') } // Example mock integration
+      // Use Lambda integration for $connect (From previous step)
+      connectRouteOptions: {
+          integration: new apigatewayv2_integrations.WebSocketLambdaIntegration(
+              'ws-connect-integration-instanceB',
+              connectHandler
+          )
+      },
+      disconnectRouteOptions: { integration: new apigatewayv2_integrations.WebSocketMockIntegration('disconnect') },
+      defaultRouteOptions: { integration: new apigatewayv2_integrations.WebSocketMockIntegration('default') }
     });
 
     const webSocketStage = new apigatewayv2.WebSocketStage(this, 'ws-stage-instanceB', {
       webSocketApi,
-      stageName: 'production', // Your stage name
+      stageName: 'production',
       autoDeploy: true,
     });
 
@@ -62,32 +73,39 @@ export class CdkBackendStackInstanceB extends cdk.Stack {
       handler: 'index.lambda_handler',
       code: lambda.Code.fromAsset('lambda/lambdaXbedrock'),
       environment: {
-        // Pass the **Callback URL** for the Lambda to send messages back
         URL: webSocketStage.callbackUrl,
         KNOWLEDGE_BASE_ID: kb.knowledgeBaseId,
       },
-      timeout: cdk.Duration.minutes(5), // Increase timeout if needed for Bedrock calls
+      timeout: cdk.Duration.minutes(5),
     });
 
+    // **************************************************************** //
+    // *** MODIFICATION: Update Bedrock Lambda permissions          *** //
+    // **************************************************************** //
     // Grant Bedrock Lambda permissions
     lambdaXbedrock.addToRolePolicy(new iam.PolicyStatement({
-        actions: ['bedrock:Retrieve', 'bedrock:InvokeModel'], // Specific permissions are better
+        // Action needed for KB Retrieve operation
+        // Action needed for Bedrock ConverseStream operation
+        actions: ['bedrock:Retrieve', 'bedrock:InvokeModelWithResponseStream'],
         resources: [
-            kb.knowledgeBaseArn, // Permission for the specific KB
-            `arn:aws:bedrock:${this.region}::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0`, // Permission for specific model
-            `arn:aws:bedrock:${this.region}::foundation-model/amazon.titan-embed-text-v1` // Check model name
-            // Add other models if used
+            // Permission for the specific KB used in Retrieve
+            kb.knowledgeBaseArn,
+            // Permission for the specific foundation model used in ConverseStream
+            `arn:aws:bedrock:${this.region}::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0`,
+            // Note: Removed titan-embed model ARN - it's used by the KB service, not invoked by this Lambda directly.
         ],
     }));
+    // **************************************************************** //
+
     lambdaXbedrock.addToRolePolicy(new iam.PolicyStatement({ // Permission to send messages back
         actions: ['execute-api:ManageConnections'],
         resources: [`arn:aws:execute-api:${this.region}:${this.account}:${webSocketApi.apiId}/${webSocketStage.stageName}/POST/@connections/*`],
     }));
 
-    // WebSocket Handler Lambda
+    // WebSocket Handler Lambda for 'sendMessage'
     const webSocketHandler = new lambda.Function(this, 'websocket-handler-instanceB', {
       runtime: lambda.Runtime.PYTHON_3_12,
-      handler: 'index.lambda_handler', // Assuming file is lambda/web-socket-handler/index.py
+      handler: 'index.lambda_handler',
       code: lambda.Code.fromAsset('lambda/web-socket-handler'),
       environment: {
         RESPONSE_FUNCTION_ARN: lambdaXbedrock.functionArn,
@@ -99,79 +117,66 @@ export class CdkBackendStackInstanceB extends cdk.Stack {
 
 
     // --- WebSocket API Route Integration ---
-    // Add the 'sendMessage' route to trigger the handler lambda
+    // 'sendMessage' route
     webSocketApi.addRoute('sendMessage', {
       integration: new apigatewayv2_integrations.WebSocketLambdaIntegration(
-        'ws-sendMessage-integration-instanceB', // Integration ID
-        webSocketHandler // The Lambda function to integrate with
+        'ws-sendMessage-integration-instanceB',
+        webSocketHandler
       ),
     });
 
-
     // --- Amplify Frontend App Setup ---
-    // Retrieve GitHub Token from Secrets Manager
      const githubTokenSecret = secretsmanager.Secret.fromSecretNameV2(
        this,
-       'GitHubTokenInstanceBImport', // ID for CDK construct
-       'pc-github-token' // Actual name of the secret in Secrets Manager
+       'GitHubTokenInstanceBImport',
+       'pc-github-token'
      );
 
-
     const amplifyApp = new amplify.App(this, 'litigationB-ReactApp', {
-      appName: 'litigationB-ReactApp', // Optional: customize app name
+      appName: 'litigationB-ReactApp',
       sourceCodeProvider: new amplify.GitHubSourceCodeProvider({
-        owner: 'Population-Council', // Your GitHub owner/organization
-        repository: 'Drugs-Side-Effect-Classification', // Your repository name
-        oauthToken: githubTokenSecret.secretValue, // Reference the secret value
+        owner: 'Population-Council',
+        repository: 'Drugs-Side-Effect-Classification',
+        oauthToken: githubTokenSecret.secretValue,
       }),
-      // Define build settings
       buildSpec: codebuild.BuildSpec.fromObject({
         version: '1.0',
         frontend: {
           phases: {
             preBuild: {
-              commands: ['cd frontend', 'npm ci'] // Navigate and install dependencies
+              commands: ['cd frontend', 'npm ci']
             },
             build: {
-              commands: ['npm run build'] // Build command for React app
+              commands: ['npm run build']
             }
           },
           artifacts: {
-            baseDirectory: 'frontend/build', // Output directory
+            baseDirectory: 'frontend/build',
             files: ['**/*']
           },
           cache: {
-            paths: ['frontend/node_modules/**/*'] // Cache dependencies
+            paths: ['frontend/node_modules/**/*']
           }
         }
       }),
-       // Note: platform attribute might be needed depending on amplify-alpha version
-       // platform: amplify.Platform.WEB,
     });
 
-    // Add a branch (e.g., main)
     const mainBranch = amplifyApp.addBranch('main', {
-      autoBuild: true, // Automatically build on push
-      stage: 'PRODUCTION', // Or 'DEVELOPMENT', etc.
+      autoBuild: true,
+      stage: 'PRODUCTION',
     });
 
-    // --- * KEY CHANGE HERE * ---
-    // Construct the correct WebSocket connection URL (wss://) for the frontend
-    const webSocketConnectUrl = `wss://${webSocketApi.apiId}.execute-api.${this.region}.amazonaws.com/${webSocketStage.stageName}`;
+    // Construct the correct WebSocket connection URL
+    const webSocketConnectUrl = `wss://${webSocketApi.apiId}.execute-api.${this.region}.amazonaws.com/${webSocketStage.stageName}/`;
 
     // Add Environment Variables for the Amplify App
-    amplifyApp.addEnvironment('REACT_APP_WEBSOCKET_API', webSocketConnectUrl); // <<< Use the correct wss:// URL
+    amplifyApp.addEnvironment('REACT_APP_WEBSOCKET_API', webSocketConnectUrl);
     amplifyApp.addEnvironment('REACT_APP_BUCKET_NAME', bucketB.bucketName);
     amplifyApp.addEnvironment('REACT_APP_KNOWLEDGE_BASE_ID', kb.knowledgeBaseId);
-
-    // Grant Amplify Role access to read the secret if needed (usually Amplify handles this implicitly with GitHubSourceCodeProvider)
-    // githubTokenSecret.grantRead(amplifyApp.grantPrincipal);
-
 
     // --- CDK Outputs ---
     new cdk.CfnOutput(this, 'BucketNameInstanceB', { value: bucketB.bucketName });
     new cdk.CfnOutput(this, 'KnowledgeBaseIdInstanceB', { value: kb.knowledgeBaseId });
-    // Output both WebSocket URLs for clarity
     new cdk.CfnOutput(this, 'WebSocketConnectURLInstanceB', {
         value: webSocketConnectUrl,
         description: 'WebSocket URL for frontend connection (wss://)'
@@ -181,7 +186,7 @@ export class CdkBackendStackInstanceB extends cdk.Stack {
         description: 'WebSocket Callback URL for backend Lambda (https://)'
     });
     new cdk.CfnOutput(this, 'AmplifyAppURLInstanceB', {
-      value: `https://${mainBranch.branchName}.${amplifyApp.appId}.amplifyapp.com`, // Construct the Amplify URL
+      value: `https://${mainBranch.branchName}.${amplifyApp.appId}.amplifyapp.com`,
       description: 'Amplify Application URL for litigationB-ReactApp',
     });
   }
