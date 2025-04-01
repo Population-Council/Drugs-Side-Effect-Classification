@@ -22,6 +22,14 @@ const StreamingMessage = ({ initialMessage }) => {
   const { processing, setProcessing } = useProcessing();
 
   useEffect(() => {
+
+    console.log("Attempting WebSocket connection to:", WEBSOCKET_API);
+    if (!WEBSOCKET_API) {
+       console.error("ERROR: REACT_APP_WEBSOCKET_API environment variable is not defined or not accessible!");
+       // Optional: Display an error to the user
+       return; // Don't try to connect if URL is missing
+    }
+    
     ws.current = new WebSocket(WEBSOCKET_API);
 
     ws.current.onopen = () => {
