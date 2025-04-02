@@ -88,31 +88,28 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
   // --- Send Message Handler ---
   const handleSendMessage = (messageToSend) => {
     const trimmedMessage = messageToSend ? messageToSend.trim() : "";
-
-    // Check conditions: not processing, message exists, WebSocket connected
     if (!processing && trimmedMessage && websocket.current && websocket.current.readyState === WebSocket.OPEN) {
-      setProcessing(true); // Disable input immediately
+      setProcessing(true);
       const timestamp = new Date().toISOString();
-
-      // Add user message to UI
       const newMessageBlock = createMessageBlock(trimmedMessage, 'USER', 'TEXT', 'SENT', null, timestamp);
       addMessage(newMessageBlock);
-      setQuestionAsked(true); // Hide FAQ examples
+      setQuestionAsked(true);
 
-      // Prepare payload for WebSocket
+      // *** DEBUG HISTORY ***
+      const historyToSend = ALLOW_CHAT_HISTORY ? messageList : [];
+      console.log("History state right before sending:", JSON.stringify(messageList)); // Log current state
+      console.log("History being sent in payload:", JSON.stringify(historyToSend));  // Log what's actually used
+
       const messagePayload = {
-        action: 'sendMessage', // Matches backend routeKey
+        action: 'sendMessage',
         prompt: trimmedMessage,
-        role: selectedRole, // <<< *** INCLUDE SELECTED ROLE ***
-        // Include history if enabled and needed by backend
-        history: ALLOW_CHAT_HISTORY ? messageList : []
+        role: selectedRole,
+        history: historyToSend // Use the prepared variable
       };
+      // *** END DEBUG ***
 
       console.log("Sending payload:", JSON.stringify(messagePayload));
-
-      // Send the message via WebSocket
       websocket.current.send(JSON.stringify(messagePayload));
-
       // --- NOTE ---
       // The 'StreamingMessage' component should now be listening for the response
       // triggered by this send action. We no longer need 'activeQuery' state here
