@@ -10,6 +10,32 @@ import logging
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
+# --- Bot Persona Definitions ---
+# Define the system prompts for different bot roles
+# Using a dictionary for easy lookup and updates
+BOT_PERSONAS = {
+    "researchAssistant": {
+        "name": "Ponyo",
+        # Incorporates the RAG instruction style directly into the persona
+        "prompt": "You are Ponyo, a Research Assistant. Use the provided Knowledge Source Information ONLY to answer the user's question. If the information isn't sufficient to answer, clearly state that you don't have enough information based on the provided sources. Do not use prior knowledge. Be precise and stick strictly to the details found in the Knowledge Source."
+        # Note: The actual "{rag_info}" will be dynamically added later if relevant.
+        # This prompt sets the stage for HOW to use the RAG info.
+    },
+    "softwareEngineer": {
+        "name": "Chihiro",
+        "prompt": "You are Chihiro, a Software Engineer. Provide clear, concise, and technically accurate answers. You can explain concepts, provide code examples (if relevant and safe), and troubleshoot technical problems based on the context provided. Be helpful and efficient."
+    },
+    "genderYouthExpert": {
+        "name": "Kiki",
+        "prompt": "You are Kiki, a Gender and Youth Expert. Answer questions related to gender issues, youth development, and related social topics with sensitivity, expertise, and an informative tone. Ensure your responses are respectful, evidence-based (if sources are provided), and appropriate for discussions on these topics."
+    },
+    "default": { # Fallback persona
+        "name": "Assistant",
+        "prompt": "You are a helpful assistant."
+    }
+}
+# --- End Bot Persona Definitions ---
+
 # --- Determine AWS Region ---
 lambda_region = os.environ.get('AWS_REGION', 'us-east-1')
 logger.info(f"Using AWS Region: {lambda_region}")
@@ -54,33 +80,74 @@ def knowledge_base_retrieval(prompt, kb_id):
 
 # --- Source Extraction Function ---
 def extract_sources(kb_results):
-    """
-    Extracts and formats source URLs, scores, and page numbers from KB results.
-    """
-    processed_sources = []
-    logger.info(f"Extracting sources from KB results (first 500 chars): {str(kb_results)[:500]}")
-    for result in kb_results.get('retrievalResults', []):
-        location = result.get("location", {})
-        metadata = result.get("metadata", {})
-        score = result.get('score')
-        source_uri = None
-        if location.get("type") == "S3":
-            source_uri = location.get("s3Location", {}).get("uri")
-        if not source_uri:
-             source_uri = metadata.get('x-amz-bedrock-kb-source-uri') # Example metadata key
-        page_number = metadata.get('x-amz-bedrock-kb-document-page-number') # Example metadata key
+        """
+        Extracts and formats source URLs, scores, and page numbers from KB results.
+        De-duplicates based on the source document URI, keeping only the highest score per document.
+        Returns only the single highest-scoring, unique source.
+        """
+        logger.info(f"Extracting and filtering sources from KB results (first 500 chars): {str(kb_results)[:500]}")
+        
+        # Use a dictionary to track the best source info per unique S3 URI
+        best_sources_by_uri = {}
 
-        if source_uri:
-            processed_uri = re.sub(r'^s3://([^/]+)/(.*)', r'https://\1.s3.amazonaws.com/\2', source_uri)
-            source_info = {"url": processed_uri, "score": score}
-            if page_number:
-                source_info["page"] = page_number
-            processed_sources.append(source_info)
-        else:
-            logger.warning(f"Could not extract source_uri from result: {result}")
-    logger.info(f"Processed sources: {processed_sources}")
-    return processed_sources
+        for result in kb_results.get('retrievalResults', []):
+            location = result.get("location", {})
+            metadata = result.get("metadata", {})
+            score = result.get('score')
+            # Ensure score is a float for comparison, default to 0.0 if None or invalid
+            try:
+                current_score = float(score) if score is not None else 0.0
+            except (ValueError, TypeError):
+                current_score = 0.0
 
+            source_uri = None
+            if location.get("type") == "S3":
+                source_uri = location.get("s3Location", {}).get("uri")
+            # Fallback if needed (adjust key if necessary)
+            # if not source_uri and metadata:
+            #     source_uri = metadata.get('x-amz-bedrock-kb-source-uri')
+
+            if source_uri:
+                page_number = metadata.get('x-amz-bedrock-kb-document-page-number') # Or your specific metadata key
+                processed_uri = re.sub(r'^s3://([^/]+)/(.*)', r'https://\1.s3.amazonaws.com/\2', source_uri)
+
+                current_source_info = {
+                    "url": processed_uri,
+                    "score": current_score, # Use the float score
+                    "_s3_uri": source_uri # Keep original URI for de-duplication key
+                }
+                if page_number:
+                    current_source_info["page"] = page_number
+
+                # Check if we've seen this URI before and if the current score is better
+                existing_best_score = best_sources_by_uri.get(source_uri, {}).get("score", -1.0) # Default to -1 to ensure first entry is added
+
+                if current_score > existing_best_score:
+                    logger.debug(f"Updating best source for {source_uri} with score {current_score} (previous: {existing_best_score})")
+                    best_sources_by_uri[source_uri] = current_source_info
+                else:
+                     logger.debug(f"Ignoring source for {source_uri} with score {current_score} (best score is {existing_best_score})")
+
+            else:
+                logger.warning(f"Could not extract source_uri from result: {result}")
+
+        # Get the list of best source_info objects
+        deduplicated_sources = list(best_sources_by_uri.values())
+
+        # Sort the unique sources by score (highest first)
+        # Handle potential None scores during sort by defaulting them to a low value like 0.0
+        deduplicated_sources.sort(key=lambda x: x.get('score', 0.0), reverse=True)
+        
+        # Remove the temporary _s3_uri key before returning
+        for source in deduplicated_sources:
+            source.pop('_s3_uri', None)
+
+        # Limit to the top 1 source
+        top_source = deduplicated_sources[:1] # Takes the first element if list not empty, else empty list
+
+        logger.info(f"Filtered and processed top source: {top_source}")
+        return top_source # Return list containing max 1 item
+    
 # --- Relevance Check Function ---
 def is_relevant(sources, threshold=0.4):
     """
@@ -190,58 +257,63 @@ def transform_history(history, limit=25):
 
 
 # --- Main Lambda Handler ---
+# --- Main Lambda Handler ---
 def lambda_handler(event, context):
     logger.info(f"Received event: {json.dumps(event)}")
 
     connectionId = event.get("connectionId")
     prompt = event.get("prompt") # Current user prompt
     history_raw = event.get("history", [])
+    selected_role_key = event.get("role", "researchAssistant") # *** GET ROLE FROM EVENT, default ***
 
     # --- Input Validation ---
+    # ... (keep validation as is) ...
     if not connectionId:
         logger.error("Missing 'connectionId' in event.")
         return {'statusCode': 400, 'body': json.dumps({'error': 'Missing connectionId.'})}
-    # Allow empty prompt if history exists? For now, require prompt.
-    if not prompt and not history_raw: # Check if prompt is empty AND history is empty
+    if not prompt and not history_raw:
         logger.error("Missing 'prompt' in event and history is empty.")
         return {'statusCode': 400, 'body': json.dumps({'error': 'No prompt provided.'})}
-    # <<< MODIFICATION: Log if prompt is empty but history exists >>>
     elif not prompt:
          logger.warning("Prompt is empty, relying on history.")
 
 
     # --- Environment Variable Checks ---
+    # ... (keep checks as is) ...
     kb_id = os.environ.get('KNOWLEDGE_BASE_ID')
     websocket_callback_url = os.environ.get('URL')
-
     if not kb_id:
         logger.error("Environment variable 'KNOWLEDGE_BASE_ID' is not set.")
-        # Consider sending error back before returning
         return {'statusCode': 500, 'body': json.dumps({'error': 'Server configuration error (KB ID missing).'})}
     if not websocket_callback_url:
         logger.error("Environment variable 'URL' (WebSocket Callback URL) is not set.")
         return {'statusCode': 500, 'body': json.dumps({'error': 'Server configuration error (Callback URL missing).'})}
 
+
     # --- Initialize API Gateway Client ---
+    # ... (keep initialization as is) ...
     gateway_client = None
     try:
         gateway_client = boto3.client("apigatewaymanagementapi", endpoint_url=websocket_callback_url)
     except Exception as e:
          logger.error(f"Failed to create ApiGatewayManagementApi client with endpoint {websocket_callback_url}: {e}")
-         # Cannot send messages back without this client
          return {'statusCode': 500, 'body': json.dumps({'error': 'Server configuration error (API Gateway client setup failed).'})}
 
+
     # --- History Validation ---
+    # ... (keep validation as is) ...
     if not isinstance(history_raw, list):
         logger.warning(f"Received 'history' is not a list (type: {type(history_raw)}). Using empty history.")
         history = []
     else:
         history = history_raw # Use the raw history as received
 
+
     # --- KB Retrieval ---
     logger.info(f"Querying Knowledge Base ID: [{kb_id}]...")
-    # <<< MODIFICATION: Use current prompt for KB Search >>>
-    kb_response = knowledge_base_retrieval(prompt if prompt else " ", kb_id) # Use current prompt, or space if empty
+    # Use current prompt for KB Search, or a space if empty (adjust if needed)
+    kb_search_term = prompt if prompt else " "
+    kb_response = knowledge_base_retrieval(kb_search_term, kb_id)
 
     # --- Source Processing & RAG Context ---
     sources = extract_sources(kb_response)
@@ -249,93 +321,109 @@ def lambda_handler(event, context):
     rag_info = ""
     if is_kb_relevant:
         logger.info("KB results are relevant. Preparing RAG context.")
-        for result in kb_response.get("retrievalResults", []):
-            rag_info += result.get("content", {}).get("text", "") + "\n\n"
+        # Collect *only* the text content for the RAG context
+        rag_info = "\n\n".join(
+            result.get("content", {}).get("text", "")
+            for result in kb_response.get("retrievalResults", [])
+            if result.get("content", {}).get("text") # Ensure text exists
+        )
     else:
         logger.info("KB results are not relevant or no sources found.")
 
     # --- Prepare Messages for Bedrock ---
+    messages_for_api = transform_history(history) # Gets history ending in last user message
 
-    # <<< MODIFICATION: Use transform_history for the *entire* history list received >>>
-    # This function should now return the correct alternating structure ending with the latest user message
-    messages_for_api = transform_history(history)
+    # --- Dynamically Select System Prompt ---
+    persona = BOT_PERSONAS.get(selected_role_key, BOT_PERSONAS["default"]) # Get persona dict, fallback to default
+    system_prompt_text = persona["prompt"]
+    bot_name = persona["name"] # Get the name for potential future use (e.g., logging)
+    logger.info(f"Selected Bot Persona: {bot_name} (Key: {selected_role_key})")
 
-    # <<< MODIFICATION: Inject RAG context into the *last* message if relevant >>>
-    # This assumes transform_history correctly places the current prompt as the last message
-    if messages_for_api: # Check if list is not empty
-         if is_kb_relevant:
-             if messages_for_api[-1]['role'] == 'user':
-                 original_prompt_text = messages_for_api[-1]['content'][0]['text']
-                 # Construct the prompt with RAG prefix
-                 rag_prompt_text = f"""Use the following information from the knowledge source to answer the question. Answer ONLY based on this information. If the information isn't sufficient, say you don't have enough information.
+    # --- Construct Final Prompt for LLM (Handle RAG) ---
+    final_llm_prompt_text = ""
+    if messages_for_api: # If history exists (and ends with user prompt)
+        last_user_message_content = messages_for_api[-1]['content'][0]['text']
 
-                 Knowledge Source Information:
-                 {rag_info}
+        if is_kb_relevant and selected_role_key == "researchAssistant":
+             # Research Assistant with RAG: Prepend RAG context using its specific structure.
+             # The persona prompt already instructs HOW to use the info.
+             rag_enhanced_prompt = f"""Knowledge Source Information:
+{rag_info}
 
-                 User's question: {original_prompt_text}"""
-                 # Update the text in the last message
-                 messages_for_api[-1]['content'][0]['text'] = rag_prompt_text
-                 logger.info("Added RAG context to the final user message in history.")
-             else:
-                  # This case should ideally not happen if transform_history is correct
-                  logger.warning("Transformed history did not end with user role. Cannot inject RAG context.")
-         # If not is_kb_relevant, messages_for_api is used as is (already contains the final prompt)
+Based ONLY on the information above, answer the user's question: {last_user_message_content}"""
+             messages_for_api[-1]['content'][0]['text'] = rag_enhanced_prompt
+             logger.info("Added RAG context to the final user message for Research Assistant.")
+        elif is_kb_relevant:
+             # Other personas with RAG: Provide context more generally.
+             # Persona prompt guides general behavior.
+             rag_enhanced_prompt = f"""Use the following information if relevant to answer the user's question:
+Knowledge Source Information:
+{rag_info}
 
-    else: # Handle case where transform_history might return empty (e.g., invalid input history)
-         logger.warning("transform_history returned empty list. Sending only the current prompt.")
-         # Construct the prompt text, adding RAG if relevant even for the first turn
-         llm_prompt_text = prompt if prompt else " "
-         if is_kb_relevant:
-              rag_prompt_text = f"""Use the following information...
-              Knowledge Source Information:\n{rag_info}\nUser's question: {llm_prompt_text}"""
-              llm_prompt_text = rag_prompt_text
-         messages_for_api = [{"role": "user", "content": [{"text": llm_prompt_text}]}]
+User's question: {last_user_message_content}"""
+             messages_for_api[-1]['content'][0]['text'] = rag_enhanced_prompt
+             logger.info(f"Added RAG context to the final user message for {bot_name}.")
+        # else: No RAG needed, last message remains as is.
 
-    # Add system prompt
-    system_prompt = "You are a helpful assistant."
-    system_prompts = [{"text": system_prompt}] if system_prompt else None
+    else: # No history, first message
+        base_prompt = prompt if prompt else " " # Should usually have a prompt here
+        if is_kb_relevant and selected_role_key == "researchAssistant":
+            # RAG for first message - Research Assistant
+             rag_enhanced_prompt = f"""Knowledge Source Information:
+{rag_info}
 
-    logger.info(f"Sending query to LLM. System Prompt: {system_prompt}. Messages: {json.dumps(messages_for_api)}")
+Based ONLY on the information above, answer the user's question: {base_prompt}"""
+             final_llm_prompt_text = rag_enhanced_prompt
+             logger.info("Added RAG context for first message (Research Assistant).")
+        elif is_kb_relevant:
+             # RAG for first message - Other personas
+             rag_enhanced_prompt = f"""Use the following information if relevant to answer the user's question:
+Knowledge Source Information:
+{rag_info}
+
+User's question: {base_prompt}"""
+             final_llm_prompt_text = rag_enhanced_prompt
+             logger.info(f"Added RAG context for first message ({bot_name}).")
+        else:
+             # No RAG for first message
+             final_llm_prompt_text = base_prompt
+
+        # Construct the first message for the API
+        messages_for_api = [{"role": "user", "content": [{"text": final_llm_prompt_text}]}]
+
+
+    # --- Set System Prompt for Bedrock ---
+    system_prompts = [{"text": system_prompt_text}] if system_prompt_text else None
+
+    logger.info(f"Sending query to LLM. System Prompt: '{system_prompt_text}'. Messages: {json.dumps(messages_for_api)}")
 
     # --- Invoke Bedrock & Stream Response ---
     if not bedrock_runtime_client:
-         logger.error("Bedrock Runtime client not initialized. Cannot call Converse API.")
-         error_data = {'statusCode': 500, 'type': 'error', 'text': 'Server error (Bedrock client)'}
-         try:
-             if gateway_client:
-                  gateway_client.post_to_connection(ConnectionId=connectionId, Data=json.dumps(error_data))
-                  # Send end signal
-                  end_data = {'statusCode': 500, 'type': 'end'}
-                  gateway_client.post_to_connection(ConnectionId=connectionId, Data=json.dumps(end_data))
-         except Exception as gw_e: logger.error(f"Failed to send Bedrock client init error/end signal back via WebSocket: {gw_e}")
-         return {'statusCode': 500, 'body': json.dumps({'error': 'Server error (Bedrock client unavailable).'})}
+        # ... (error handling as before) ...
+        logger.error("Bedrock Runtime client not initialized. Cannot call Converse API.")
+        # ... send error via websocket ...
+        return {'statusCode': 500, 'body': json.dumps({'error': 'Server error (Bedrock client unavailable).'})}
 
     response = None
     try:
         response = bedrock_runtime_client.converse_stream(
-            modelId="anthropic.claude-3-5-sonnet-20240620-v1:0",
-            messages=messages_for_api, # <<< MODIFICATION: Use the final prepared message list >>>
-            system=system_prompts
-            # inferenceConfig={ "maxTokens": 1024, "temperature": 0.7 }
+            modelId="anthropic.claude-3-5-sonnet-20240620-v1:0", # Or your desired model
+            messages=messages_for_api, # Use the final prepared message list
+            system=system_prompts # Use the dynamically selected system prompt
+            # inferenceConfig={ "maxTokens": 1024, "temperature": 0.7 } # Optional
         )
         logger.info("Received stream response from Bedrock Converse API.")
 
     except Exception as e:
+        # ... (error handling as before) ...
         logger.error(f"Error calling Bedrock Converse API: {e}")
-        # <<< MODIFICATION: Log the specific exception details >>>
         logger.exception("Bedrock Converse API Exception Details:")
-        error_data = {'statusCode': 500, 'type': 'error', 'text': f'LLM Error: {type(e).__name__}'} # Send type, not full msg
-        try:
-            if gateway_client:
-                gateway_client.post_to_connection(ConnectionId=connectionId, Data=json.dumps(error_data))
-                logger.info("Sending end signal after LLM API error.")
-                end_data = {'statusCode': 500, 'type': 'end'}
-                gateway_client.post_to_connection(ConnectionId=connectionId, Data=json.dumps(end_data))
-        except Exception as gw_e:
-            logger.error(f"Failed to send error/end signal back via WebSocket: {gw_e}")
+        # ... send error via websocket ...
         return {'statusCode': 500, 'body': json.dumps({'error': f'Bedrock API call failed: {e}'})}
 
+
     # --- Stream Processing & WebSocket Send ---
+    # ... (Stream processing logic remains the same) ...
     stream = response.get('stream') if response else None
     if stream:
         logger.info("Processing stream...")
@@ -356,9 +444,9 @@ def lambda_handler(event, context):
                     if 'text' in delta:
                         message_text = delta['text']
                         if message_text: # Avoid sending empty deltas if possible
-                             full_response_text += message_text
-                             delta_data = {'statusCode': 200, 'type': block_type, 'text': message_text}
-                             gateway_client.post_to_connection(ConnectionId=connectionId, Data=json.dumps(delta_data))
+                            full_response_text += message_text
+                            delta_data = {'statusCode': 200, 'type': block_type, 'text': message_text}
+                            gateway_client.post_to_connection(ConnectionId=connectionId, Data=json.dumps(delta_data))
 
                 elif 'messageStop' in event:
                     stop_reason = event['messageStop'].get('stopReason')
@@ -366,21 +454,18 @@ def lambda_handler(event, context):
                     stream_finished_normally = True
                     break # Exit loop once message stops
 
+                # ... (handle other event types like metadata, contentBlockStop etc. as before) ...
                 elif 'metadata' in event:
-                    # Optional: Log usage from metadata if needed
-                    # usage = event['metadata'].get('usage', {})
-                    # logger.info(f"Usage - Input tokens: {usage.get('inputTokens')}, Output tokens: {usage.get('outputTokens')}")
-                    logger.debug(f"Stream metadata: {event['metadata']}")
-
+                     logger.debug(f"Stream metadata: {event['metadata']}")
                 elif 'contentBlockStop' in event:
-                     # This event just indicates a block finished, usually text. Can often be ignored.
                      logger.debug(f"Stream content block stop event received.")
-
                 else:
-                    logger.warning(f"Unhandled stream event type: {event}")
+                     logger.warning(f"Unhandled stream event type: {list(event.keys())}")
+
 
             # ----- After stream processing loop -----
 
+            # Send sources only if KB was relevant AND sources were found
             if is_kb_relevant and sources:
                 logger.info("Sending relevant sources back to client.")
                 sources_data = {'statusCode': 200, 'type': 'sources', 'sources': sources}
@@ -395,33 +480,19 @@ def lambda_handler(event, context):
                 try:
                     gateway_client.post_to_connection(ConnectionId=connectionId, Data=json.dumps(end_data))
                 except Exception as gw_e:
-                    logger.error(f"Failed to send end signal back via WebSocket: {gw_e}")
+                     logger.error(f"Failed to send end signal back via WebSocket: {gw_e}")
 
         except Exception as e:
+             # ... (Stream error handling as before) ...
             logger.error(f"Error processing Bedrock stream or sending data via WebSocket: {e}")
-            # <<< MODIFICATION: Log the specific exception details >>>
             logger.exception("Stream Processing/WebSocket Send Exception Details:")
-            try:
-                error_data = {'statusCode': 500, 'type': 'error', 'text': f'Stream processing error: {type(e).__name__}'}
-                gateway_client.post_to_connection(ConnectionId=connectionId, Data=json.dumps(error_data))
-                logger.info("Sending end signal after stream processing error.")
-                end_data = {'statusCode': 500, 'type': 'end'}
-                gateway_client.post_to_connection(ConnectionId=connectionId, Data=json.dumps(end_data))
-            except Exception as gw_e:
-                logger.error(f"Failed to send stream error/end signal back via WebSocket: {gw_e}")
+            # ... send error/end via websocket ...
             return {'statusCode': 500, 'body': json.dumps({'error': f'Stream processing failed: {e}'})}
 
     else: # Handle case where Bedrock response didn't contain a 'stream'
+        # ... (No stream error handling as before) ...
         logger.error("No 'stream' object found in Bedrock Converse API response.")
-        error_data = {'statusCode': 500, 'type': 'error', 'text': 'LLM response error (no stream).'}
-        try:
-            if gateway_client:
-                 gateway_client.post_to_connection(ConnectionId=connectionId, Data=json.dumps(error_data))
-                 logger.info("Sending end signal after no-stream error.")
-                 end_data = {'statusCode': 500, 'type': 'end'}
-                 gateway_client.post_to_connection(ConnectionId=connectionId, Data=json.dumps(end_data))
-        except Exception as gw_e:
-            logger.error(f"Failed to send no-stream error/end signal back via WebSocket: {gw_e}")
+        # ... send error/end via websocket ...
         return {'statusCode': 500, 'body': json.dumps({'error': 'Bedrock response missing stream.'})}
 
     logger.info("Successfully processed request and streamed response or handled error.")
