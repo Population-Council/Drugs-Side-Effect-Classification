@@ -7,8 +7,8 @@ import Attachment from './Attachment';
 import ChatInput from './ChatInput';
 import UserAvatar from '../Assets/UserAvatar.svg';
 // *** Corrected import name potentially ***
-// Ensure the component file is actually named StreamingMessage.jsx if using this name
-import StreamingMessage from './StreamingMessage'; // Corrected import name
+// Ensure the component file is actually named StreamingResponse.jsx if using this name
+import StreamingResponse from './StreamingResponse'; // Corrected import name
 import createMessageBlock from '../utilities/createMessageBlock';
 import { ALLOW_FILE_UPLOAD, ALLOW_VOICE_RECOGNITION, ALLOW_FAQ, USERMESSAGE_TEXT_COLOR, WEBSOCKET_API, ALLOW_CHAT_HISTORY } from '../utilities/constants';
 import BotFileCheckReply from './BotFileCheckReply';
@@ -118,11 +118,11 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
                     </Box>
                 ))}
 
-                {/* Conditionally render StreamingMessage */}
+                {/* Conditionally render StreamingResponse */}
                 {processing && isWsConnected && (
                     <Box sx={{ mb: 2 }}>
                         {/* *** Pass the callback prop *** */}
-                        <StreamingMessage
+                        <StreamingResponse
                             websocket={websocket.current}
                             onStreamComplete={handleStreamComplete}
                         />
@@ -170,7 +170,7 @@ function UserReply({ message }) { /* ... component code ... */
 
 export default ChatBody;
 // --- IMPORTANT ---
-// You will also need to modify your `StreamingMessage.jsx` component.
+// You will also need to modify your `StreamingResponse.jsx` component.
 // It should now accept the `websocket` instance as a prop and set up its
 // `onmessage` listener on that instance instead of potentially creating its own connection.
 // It will use the message context (`useMessage`) to add the streamed parts and the final message.

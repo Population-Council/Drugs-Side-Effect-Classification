@@ -1,4 +1,4 @@
-// /home/zvallarino/AI_AWS_PC/Drugs-Side-Effect-Classification/frontend/src/Components/StreamingMessage.jsx
+// /home/zvallarino/AI_AWS_PC/Drugs-Side-Effect-Classification/frontend/src/Components/StreamingResponsessage.jsx
 
 import React, { useState, useEffect, useRef } from "react";
 import { Grid, Avatar, Typography, IconButton, Tooltip, Box } from "@mui/material";
@@ -14,7 +14,7 @@ import ReactMarkdown from "react-markdown";
 // import { useProcessing } from '../contexts/ProcessingContext';
 
 // Accept onStreamComplete prop
-const StreamingMessage = ({ websocket, onStreamComplete }) => {
+const StreamingResponse = ({ websocket, onStreamComplete }) => {
     const [responses, setResponses] = useState([]);
     const [sources, setSources] = useState([]);
     const [showLoading, setShowLoading] = useState(true);
@@ -28,7 +28,7 @@ const StreamingMessage = ({ websocket, onStreamComplete }) => {
     // Effect to attach listeners
     useEffect(() => {
         if (!websocket || websocket.readyState !== WebSocket.OPEN) {
-            console.warn("StreamingMessage: WebSocket instance not available or not open.");
+            console.warn("StreamingResponse: WebSocket instance not available or not open.");
             // If component mounts but WS is bad, signal completion immediately to avoid hanging
             if (onStreamComplete) {
                 onStreamComplete();
@@ -36,7 +36,7 @@ const StreamingMessage = ({ websocket, onStreamComplete }) => {
             return;
         }
 
-        console.log("StreamingMessage: Attaching listeners to WebSocket.");
+        console.log("StreamingResponse: Attaching listeners to WebSocket.");
         setStreamEnded(false);
         setErrorOccurred(false); // Reset error state
         setResponses([]);
@@ -54,19 +54,19 @@ const StreamingMessage = ({ websocket, onStreamComplete }) => {
                     if (showLoading) setShowLoading(false);
                     setResponses((prev) => [...prev, jsonData.text]);
                 } else if (jsonData.type === "sources" && jsonData.sources) {
-                    console.log("StreamingMessage Sources received: ", jsonData.sources);
+                    console.log("StreamingResponse Sources received: ", jsonData.sources);
                     setSources(jsonData.sources);
                 } else if (jsonData.type === "end") {
-                    console.log("StreamingMessage End signal received.");
+                    console.log("StreamingResponse End signal received.");
                     setStreamEnded(true);
                     // setProcessing(false); // <<< REMOVED >>>
                 } else if (jsonData.type === "error") {
-                    console.error("StreamingMessage Backend error message:", jsonData.text);
+                    console.error("StreamingResponse Backend error message:", jsonData.text);
                     setErrorOccurred(true); // Mark that an error occurred
                     setStreamEnded(true); // Treat error as end of stream for final message logic
                     // setProcessing(false); // <<< REMOVED >>>
                 } else {
-                    console.warn("StreamingMessage Received unknown message type:", jsonData.type, jsonData);
+                    console.warn("StreamingResponse Received unknown message type:", jsonData.type, jsonData);
                 }
 
             } catch (e) {
@@ -77,24 +77,24 @@ const StreamingMessage = ({ websocket, onStreamComplete }) => {
                         if (showLoading) setShowLoading(false);
                         setResponses((prev) => [...prev, jsonData.text]);
                     } else if (jsonData.type === "sources" && jsonData.sources) {
-                        console.log("StreamingMessage Sources received (buffered): ", jsonData.sources);
+                        console.log("StreamingResponse Sources received (buffered): ", jsonData.sources);
                         setSources(jsonData.sources);
                     } else if (jsonData.type === "end") {
-                        console.log("StreamingMessage End signal received (buffered).");
+                        console.log("StreamingResponse End signal received (buffered).");
                         setStreamEnded(true);
                         // setProcessing(false); // <<< REMOVED >>>
                     } else if (jsonData.type === "error") {
-                        console.error("StreamingMessage Backend error message (buffered):", jsonData.text);
+                        console.error("StreamingResponse Backend error message (buffered):", jsonData.text);
                         setErrorOccurred(true);
                         setStreamEnded(true);
                         // setProcessing(false); // <<< REMOVED >>>
                     } else {
-                        console.warn("StreamingMessage Received unknown message type (buffered):", jsonData.type, jsonData);
+                        console.warn("StreamingResponse Received unknown message type (buffered):", jsonData.type, jsonData);
                     }
                     messageBuffer.current = "";
                 } catch (parseError) {
                     if (messageBuffer.current.length > 15000) {
-                        console.error("StreamingMessage Buffer too large, clearing.", parseError);
+                        console.error("StreamingResponse Buffer too large, clearing.", parseError);
                         messageBuffer.current = "";
                         setErrorOccurred(true);
                         setStreamEnded(true);
@@ -105,7 +105,7 @@ const StreamingMessage = ({ websocket, onStreamComplete }) => {
         };
 
         const handleWebSocketError = (error) => {
-            console.error("StreamingMessage WebSocket Error: ", error);
+            console.error("StreamingResponse WebSocket Error: ", error);
             setShowLoading(false);
             setErrorOccurred(true);
             setStreamEnded(true);
@@ -114,9 +114,9 @@ const StreamingMessage = ({ websocket, onStreamComplete }) => {
 
         const handleWebSocketClose = (event) => {
             setShowLoading(false);
-            console.log(`StreamingMessage WebSocket closed. Code: ${event.code}, Reason: ${event.reason}, Clean: ${event.wasClean}`);
+            console.log(`StreamingResponse WebSocket closed. Code: ${event.code}, Reason: ${event.reason}, Clean: ${event.wasClean}`);
             if (!streamEnded) { // Only trigger if end signal wasn't received
-                console.log("StreamingMessage WebSocket closed unexpectedly.");
+                console.log("StreamingResponse WebSocket closed unexpectedly.");
                 if (!event.wasClean) setErrorOccurred(true); // Treat unclean close as an error scenario
                 setStreamEnded(true);
                 // setProcessing(false); // <<< REMOVED >>>
@@ -128,7 +128,7 @@ const StreamingMessage = ({ websocket, onStreamComplete }) => {
         websocket.onclose = handleWebSocketClose;
 
         return () => {
-            console.log("StreamingMessage: Detaching listeners.");
+            console.log("StreamingResponse: Detaching listeners.");
             if (websocket) {
                 websocket.onmessage = null;
                 websocket.onerror = null;
@@ -146,7 +146,7 @@ const StreamingMessage = ({ websocket, onStreamComplete }) => {
             // Add message only if there's content OR sources (avoid empty blocks on pure errors)
             // Also add if an error occurred to ensure some feedback might be present
             if (finalMessage || sources.length > 0 || errorOccurred) {
-                console.log("StreamingMessage Stream ended. Adding final message block.");
+                console.log("StreamingResponse Stream ended. Adding final message block.");
                 const finalSources = (DISPLAY_SOURCES_BEDROCK_KB && sources.length > 0) ? sources : [];
                 const messageTextToAdd = errorOccurred && !finalMessage
                     ? "An error occurred while generating the response." // Default error text if nothing streamed
@@ -163,12 +163,12 @@ const StreamingMessage = ({ websocket, onStreamComplete }) => {
                 );
                 addMessage(botMessageBlock);
             } else {
-                console.log("StreamingMessage Stream ended with no content/sources/error to add.");
+                console.log("StreamingResponse Stream ended with no content/sources/error to add.");
             }
 
             // *** Signal completion back to ChatBody ***
             if (onStreamComplete) {
-                console.log("StreamingMessage: Signaling stream completion.");
+                console.log("StreamingResponse: Signaling stream completion.");
                 onStreamComplete();
             }
 
@@ -248,4 +248,4 @@ const StreamingMessage = ({ websocket, onStreamComplete }) => {
   );
 };
 
-export default StreamingMessage;
+export default StreamingResponse;
