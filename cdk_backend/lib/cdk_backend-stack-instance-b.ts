@@ -20,7 +20,7 @@ export class CdkBackendStackInstanceB extends cdk.Stack {
 
     // --- Knowledge Base Setup ---
     const kb = new bedrock.KnowledgeBase(this, 'kb-instanceB', {
-      embeddingsModel: bedrock.BedrockFoundationModel.TITAN_EMBED_TEXT_V1,
+      embeddingsModel: bedrock.BedrockFoundationModel.TITAN_EMBED_TEXT_V2_1024,
       instruction: 'Knowledge base for Litigation B',
     });
 
