@@ -11,7 +11,7 @@ import ReactMarkdown from "react-markdown";
 
 // This component ONLY displays the incoming stream deltas visually
 // It does NOT handle WebSocket connections or final message state management
-const StreamingResponseDisplay = ({ deltas = [] }) => {
+const StreamingResponse = ({ deltas = [] }) => {
     const [showLoading, setShowLoading] = useState(true);
     const [copySuccess, setCopySuccess] = useState(false);
     // Combine deltas received so far for continuous display
@@ -127,4 +127,4 @@ const StreamingResponseDisplay = ({ deltas = [] }) => {
    );
 };
 
-export default StreamingResponseDisplay;
+export default StreamingResponse;
