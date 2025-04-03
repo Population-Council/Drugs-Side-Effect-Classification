@@ -15,7 +15,7 @@ import { useMessage } from '../contexts/MessageContext';
 import { useQuestion } from '../contexts/QuestionContext';
 import { useProcessing } from '../contexts/ProcessingContext';
 import BotReply from './BotReply'; // Displays final BOT messages
-import StreamingResponseDisplay from './StreamingResponseDisplay'; // Displays streaming BOT messages
+import StreamingResponse from './StreamingResponse'; // Displays streaming BOT messages
 import { useRole } from '../contexts/RoleContext';
 
 function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
@@ -279,7 +279,7 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
                 {/* Conditionally render the *display* component for ongoing streams */}
                  {processing && isWsConnected && !streamingData.ended && (
                     <Box sx={{ mb: 2 }} key={streamingData.key}> {/* Use key to reset display state */}
-                        <StreamingResponseDisplay
+                        <StreamingResponse
                             deltas={streamingData.deltas}
                             // Pass sources/error if StreamingResponseDisplay needs them live
                             // sources={streamingData.sources}
