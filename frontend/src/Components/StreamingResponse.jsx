@@ -7,49 +7,44 @@ import CheckIcon from "@mui/icons-material/Check";
 import BotAvatar from "../Assets/BotAvatar.svg";
 import LoadingAnimation from "../Assets/loading_animation.gif";
 import { ALLOW_MARKDOWN_BOT, DISPLAY_SOURCES_BEDROCK_KB, BOTMESSAGE_TEXT_COLOR } from "../utilities/constants";
-import { useMessage } from "../contexts/MessageContext";
-import createMessageBlock from "../utilities/createMessageBlock";
+// Removed useMessage import
 import ReactMarkdown from "react-markdown";
 
 const StreamingResponse = ({ websocket, onStreamComplete }) => {
-    const [currentStreamText, setCurrentStreamText] = useState(""); // Store current streaming text directly
-    const [sources, setSources] = useState([]);
+    const [currentStreamText, setCurrentStreamText] = useState("");
+    const [sources, setSources] = useState([]); // Still track sources if needed for live display (optional)
     const [showLoading, setShowLoading] = useState(true);
-    const { addMessage } = useMessage();
     const [copySuccess, setCopySuccess] = useState(false);
-    // Removed streamEnded and errorOccurred states as they are handled directly in the message listener
+    const isMounted = useRef(true); // Keep mount check
 
-    // Ref to track if the component is still mounted to avoid state updates after unmount
-    const isMounted = useRef(true);
     useEffect(() => {
         isMounted.current = true;
         return () => {
-            isMounted.current = false; // Set to false when component unmounts
+            isMounted.current = false;
         };
     }, []);
 
 
-    // Effect to attach listeners
     useEffect(() => {
         if (!websocket || websocket.readyState !== WebSocket.OPEN) {
             console.warn("StreamingResponse: WebSocket instance not available or not open.");
+            // Signal completion immediately with error state if WS is bad
             if (onStreamComplete) {
-                onStreamComplete(); // Signal completion if WS is bad on mount
+                onStreamComplete("", [], true); // Pass empty text/sources, indicate error
             }
             return;
         }
 
         console.log("StreamingResponse: Attaching listeners to WebSocket.");
-        // Reset state on new stream
         setCurrentStreamText("");
         setSources([]);
         setShowLoading(true);
         setCopySuccess(false);
 
-        let accumulatedText = ""; // Local accumulator for this stream instance
+        let accumulatedText = "";
+        let accumulatedSources = []; // Accumulate sources locally too
 
         const handleWebSocketMessage = (event) => {
-             // Check if component is still mounted before updating state
              if (!isMounted.current) {
                 console.log("StreamingResponse: Component unmounted, ignoring WS message.");
                 return;
@@ -61,87 +56,60 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
 
                 if (jsonData.type === "delta" && jsonData.text) {
                     if (showLoading) setShowLoading(false);
-                    accumulatedText += jsonData.text; // Append to local accumulator
-                    setCurrentStreamText(accumulatedText); // Update state for rendering
+                    accumulatedText += jsonData.text;
+                    setCurrentStreamText(accumulatedText);
                 } else if (jsonData.type === "sources" && jsonData.sources) {
                     console.log("StreamingResponse Sources received: ", jsonData.sources);
-                    setSources(jsonData.sources); // Update sources state
+                    // Optionally update state if you want to display sources live (uncommon)
+                    // setSources(jsonData.sources);
+                    accumulatedSources = jsonData.sources; // Store for final callback
                 } else if (jsonData.type === "end" || jsonData.type === "error") {
-                    // --- Final Message Handling ---
                     const isError = jsonData.type === "error";
-                    const errorText = isError ? jsonData.text : null;
+                    const errorMsg = isError ? jsonData.text : null;
                     console.log(`StreamingResponse ${isError ? 'Error' : 'End'} signal received.`);
 
-                    const finalMessageText = isError && !accumulatedText
-                        ? errorText || "An error occurred while generating the response." // Use error text or default
-                        : accumulatedText; // Use accumulated text
-
-                    // Add final message block *before* signalling completion
-                    if (finalMessageText || sources.length > 0) {
-                         const finalSources = (DISPLAY_SOURCES_BEDROCK_KB && sources.length > 0) ? sources : [];
-                         const botMessageBlock = createMessageBlock(
-                            finalMessageText,
-                            "BOT",
-                            "TEXT", // Keep as TEXT even for errors for now
-                            "SENT",
-                            "", // fileName
-                            "", // fileStatus
-                            finalSources
-                        );
-                        console.log("StreamingResponse: Adding final message block.");
-                        addMessage(botMessageBlock);
-                    } else {
-                        console.log("StreamingResponse: Stream ended with no content/sources to add.");
-                    }
-
-                    // Signal completion *after* adding message block
+                    // Call completion callback with final data
                     if (onStreamComplete) {
-                        console.log("StreamingResponse: Signaling stream completion.");
-                        onStreamComplete();
+                        console.log("StreamingResponse: Signaling stream completion with final data.");
+                        // Pass accumulated text/sources, and error flag
+                        onStreamComplete(accumulatedText, accumulatedSources, isError, errorMsg);
                     }
-                    // Clean up listeners potentially? Though the effect cleanup does this.
-                    // Consider if WS listener should be removed here if WS persists
+                    // DO NOT add message block here anymore
+                    // DO NOT set processing false here
 
                 } else {
                     console.warn("StreamingResponse Received unknown message type:", jsonData.type, jsonData);
                 }
 
             } catch (e) {
-                // Handle potential JSON parse errors if data comes in chunks - less likely with WS but possible
-                 console.error("StreamingResponse: Error parsing WebSocket message or partial message received.", e, "Data:", event.data);
-                 // If parsing fails consistently, might indicate a problem. Could add an error message here too.
-                 // For simplicity, we'll currently rely on the backend sending a proper 'error' type message.
+                 console.error("StreamingResponse: Error parsing WebSocket message.", e, "Data:", event.data);
+                 // Signal completion with error if parsing fails critically
+                 if (onStreamComplete) {
+                     onStreamComplete(accumulatedText, accumulatedSources, true, "Error parsing response.");
+                 }
             }
         };
 
         const handleWebSocketError = (error) => {
-            if (!isMounted.current) return; // Check mount status
+            if (!isMounted.current) return;
             console.error("StreamingResponse WebSocket Error: ", error);
             setShowLoading(false);
-            // Create and add an error message block
-            const errorMsgBlock = createMessageBlock(
-                "A WebSocket error occurred. Please try again.",
-                "BOT", "TEXT", "SENT", "", "", []
-            );
-            addMessage(errorMsgBlock);
-            // Signal completion
+             // Signal completion callback with error state
             if (onStreamComplete) {
-                onStreamComplete();
+                onStreamComplete(accumulatedText, accumulatedSources, true, "WebSocket connection error.");
             }
         };
 
         const handleWebSocketClose = (event) => {
-            if (!isMounted.current) return; // Check mount status
-             setShowLoading(false);
-            console.log(`StreamingResponse WebSocket closed. Code: ${event.code}, Reason: ${event.reason}, Clean: ${event.wasClean}`);
-             // Only add error message and signal completion IF it wasn't triggered by a normal 'end'/'error' message handler above
-            // This requires tracking if 'end' or 'error' was already handled. A simple flag could do this.
-            // For now, let's assume 'end'/'error' messages are reliable. If the close is unexpected,
-            // signal completion, but maybe don't add a duplicate error message if one was already added.
-            // A more robust solution might involve a ref to track if completion was signaled.
+            if (!isMounted.current) return;
+            setShowLoading(false);
+            console.log(`StreamingResponse WebSocket closed unexpectedly. Code: ${event.code}, Clean: ${event.wasClean}`);
+            // Signal completion callback with error state only if not already ended cleanly
+            // This requires more state tracking, for simplicity we'll signal potentially again,
+            // the parent should handle idempotency if needed.
             if (onStreamComplete) {
-                console.log("StreamingResponse: WebSocket closed, ensuring completion signal.")
-                onStreamComplete(); // Ensure completion is signalled even on close
+                // Pass current accumulated state and indicate error due to unclean close
+                 onStreamComplete(accumulatedText, accumulatedSources, true, `WebSocket closed unexpectedly (${event.code}).`);
             }
         };
 
@@ -149,26 +117,22 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
         websocket.onerror = handleWebSocketError;
         websocket.onclose = handleWebSocketClose;
 
-        // Cleanup function
         return () => {
             console.log("StreamingResponse: Detaching listeners.");
-            // Clear listeners on the specific websocket instance passed in props
-            // Avoid potential issues if the same websocket object is reused elsewhere
             if (websocket) {
-                 // Check if functions are still assigned before nulling them
                  if (websocket.onmessage === handleWebSocketMessage) websocket.onmessage = null;
                  if (websocket.onerror === handleWebSocketError) websocket.onerror = null;
                  if (websocket.onclose === handleWebSocketClose) websocket.onclose = null;
             }
         };
-    // Re-run effect if the websocket instance changes or the callback changes
-    }, [websocket, onStreamComplete, addMessage]); // Added addMessage dependency
+    // Only depends on websocket instance and callback function identity
+    }, [websocket, onStreamComplete]);
 
 
     const handleCopyToClipboard = () => {
+        // Now copies the live text state
         if (!currentStreamText) return;
         navigator.clipboard.writeText(currentStreamText).then(() => {
-            console.log("Streaming message copied to clipboard");
             setCopySuccess(true);
             setTimeout(() => setCopySuccess(false), 3000);
         }).catch((err) => {
@@ -177,14 +141,11 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
     };
 
     // --- Render Logic ---
-    // Show loading only initially
-    if (showLoading) {
-         return (
-             <Box sx={{ width: '100%' }}>
+     if (showLoading) { // Show loading initially
+         return ( /* ... loading indicator JSX ... */
+            <Box sx={{ width: '100%' }}>
                 <Grid container direction="row" justifyContent="flex-start" alignItems="flex-start" spacing={1} wrap="nowrap">
-                    <Grid item>
-                        <Avatar alt="Bot Avatar" src={BotAvatar} sx={{ width: 40, height: 40, mt: 1 }} />
-                    </Grid>
+                    <Grid item><Avatar alt="Bot Avatar" src={BotAvatar} sx={{ width: 40, height: 40, mt: 1 }} /></Grid>
                     <Grid item className="botMessage" xs sx={{ /* styles */ backgroundColor: (theme) => theme.palette.background.botMessage, position: "relative", padding: '10px 15px', borderRadius: '20px', mt: 1, minWidth: '50px', maxWidth: 'calc(100% - 50px)', wordWrap: 'break-word', minHeight: '40px' }}>
                         <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', minHeight: 'inherit' }}>
                             <img src={LoadingAnimation} alt="Loading..." style={{ width: '40px', height: '40px' }} />
@@ -193,6 +154,12 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
                 </Grid>
             </Box>
         );
+    }
+
+    // Only render the box if there's actually text being streamed.
+    // The final persistent message will be rendered by BotReply in ChatBody.
+    if (!currentStreamText) {
+        return null; // Don't render an empty box while waiting for the first delta
     }
 
     // If loading is finished but there's no text yet (and sources haven't arrived), render nothing temporarily
@@ -206,34 +173,30 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
 
 
     // Render the streaming text as it arrives
-    return (
+    return ( /* ... JSX to display currentStreamText with copy button ... */
         <Box sx={{ width: '100%' }}>
-           <Grid container direction="row" justifyContent="flex-start" alignItems="flex-start" spacing={1} wrap="nowrap">
-                <Grid item>
-                    <Avatar alt="Bot Avatar" src={BotAvatar} sx={{ width: 40, height: 40, mt: 1 }} />
-                </Grid>
-                <Grid item className="botMessage" xs sx={{ /* styles */ backgroundColor: (theme) => theme.palette.background.botMessage, position: "relative", padding: '10px 15px', paddingRight: '40px', borderRadius: '20px', mt: 1, minWidth: '50px', maxWidth: 'calc(100% - 50px)', wordWrap: 'break-word', minHeight: '40px' }}>
-                   {currentStreamText && ( // Render copy button only if there is text
-                        <Tooltip title={copySuccess ? "Copied" : "Copy current text"}>
-                             <IconButton size="small" onClick={handleCopyToClipboard} sx={{ position: "absolute", top: 5, right: 5, zIndex: 1, color: 'grey.600' }}>
-                                 {copySuccess ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
-                             </IconButton>
-                         </Tooltip>
-                    )}
-                     {ALLOW_MARKDOWN_BOT ? (
-                        <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR} sx={{ '& > p': { margin: 0 } }}>
-                            <ReactMarkdown>{currentStreamText || "\u00A0"}</ReactMarkdown>
-                         </Typography>
-                     ) : (
-                        <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR}>
-                             {currentStreamText || "\u00A0"}
-                         </Typography>
+            <Grid container direction="row" justifyContent="flex-start" alignItems="flex-start" spacing={1} wrap="nowrap">
+                 <Grid item><Avatar alt="Bot Avatar" src={BotAvatar} sx={{ width: 40, height: 40, mt: 1 }} /></Grid>
+                 <Grid item className="botMessage" xs sx={{ /* styles */ backgroundColor: (theme) => theme.palette.background.botMessage, position: "relative", padding: '10px 15px', paddingRight: '40px', borderRadius: '20px', mt: 1, minWidth: '50px', maxWidth: 'calc(100% - 50px)', wordWrap: 'break-word', minHeight: '40px' }}>
+                    {currentStreamText && (
+                         <Tooltip title={copySuccess ? "Copied" : "Copy current text"}>
+                              <IconButton size="small" onClick={handleCopyToClipboard} sx={{ position: "absolute", top: 5, right: 5, zIndex: 1, color: 'grey.600' }}>
+                                  {copySuccess ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
+                              </IconButton>
+                          </Tooltip>
                      )}
-                     {/* Note: Sources are added to the final message block, not displayed live during streaming here */}
-                </Grid>
-            </Grid>
-       </Box>
-    );
-};
-
+                      {ALLOW_MARKDOWN_BOT ? (
+                         <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR} sx={{ '& > p': { margin: 0 } }}>
+                             <ReactMarkdown>{currentStreamText || "\u00A0"}</ReactMarkdown>
+                          </Typography>
+                      ) : (
+                         <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR}>
+                              {currentStreamText || "\u00A0"}
+                          </Typography>
+                      )}
+                 </Grid>
+             </Grid>
+        </Box>
+     );
+ };
 export default StreamingResponse;
