@@ -54,7 +54,7 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
             try {
                 jsonData = JSON.parse(event.data);
 
-                if (jsonData.type === "delta" && jsonData.text) {
+                if ((jsonData.type === "delta" || jsonData.type === "text") && jsonData.text) {
                     if (showLoading) setShowLoading(false);
                     accumulatedText += jsonData.text;
                     setCurrentStreamText(accumulatedText);
