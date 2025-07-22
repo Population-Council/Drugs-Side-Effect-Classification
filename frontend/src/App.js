@@ -96,13 +96,14 @@ function MainApp() {
       }}
     >
       {/* Header */}
-      <Box sx={{ flexShrink: 0 }}>
+           <Box sx={{ height: '20%' }}> 
         <AppHeader showSwitch={true} />
       </Box>
       
       {/* Main Content Area */}
       <Box 
         sx={{ 
+          height: '80%',
           flexGrow: 1,
           display: 'flex',
           overflow: 'hidden',
@@ -110,7 +111,7 @@ function MainApp() {
           minHeight: 0 // This is critical for flexbox to work properly
         }}
       >
-        {/* Left Navigation */}
+        {/* Left Navigation
         {(showLeftNav || !isMobile) && (
           <Box 
             sx={{ 
@@ -124,12 +125,12 @@ function MainApp() {
           >
             <LeftNav 
               showLeftNav={showLeftNav} 
-              setLeftNav={setLeftNav} 
+              setLeftNav={setLeftNav}   
               uploadedFile={uploadedFile} 
               fileType={fileType} 
             />
           </Box>
-        )}
+        )} */}
         
         {/* Chat Area */}
         <Box 
