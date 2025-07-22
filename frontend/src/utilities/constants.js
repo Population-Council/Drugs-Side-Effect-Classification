@@ -31,7 +31,7 @@ export const USERMESSAGE_TEXT_COLOR = "#FFFFFF"; // Text color for messages sent
 export const TEXT = {
   EN: {
     APP_NAME: "Population Council Chatbot",
-    APP_ASSISTANT_NAME: "Population Council Chatbot",
+    APP_ASSISTANT_NAME: "Tobi",
     ABOUT_US_TITLE: "About Us",
     ABOUT_US: "The Population Council is a leading research organization dedicated to building an equitable and sustainable world that enhances the health and well-being of current and future generations.",
     FILE_PREVIEW:"Uploaded File",
