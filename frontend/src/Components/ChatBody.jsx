@@ -254,7 +254,8 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
                     display: 'flex',
                     flexShrink: 0,
                     alignItems: 'flex-end',
-                    backgroundColor: 'red', 
+                    // backgroundColor: 'red', 
+                    
                     py: 1, 
                     px: { xs: 2, md: 3 }, 
                     borderTop: (theme) => `1px solid ${theme.palette.divider}`,
@@ -263,10 +264,11 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
                 <Box sx={{
                     display: 'flex',
                     flexGrow: 1,
+                    mx: 'auto',
                     alignItems: 'flex-end',
                     bgcolor: 'background.paper', 
                     borderRadius: '25px', 
-                    p: '2px 4px', 
+                    p: '20px 4px', 
                 }}>
                     <Box sx={{ display: ALLOW_VOICE_RECOGNITION ? 'flex' : 'none', alignSelf: 'center', ml: 1 }}>
                         <SpeechRecognitionComponent setMessage={setMessage} getMessage={() => message} />
@@ -275,12 +277,14 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
                          <Attachment onFileUploadComplete={handleFileUploadComplete} />
                     </Box>
                     {/* MODIFIED LINE: Removed flexGrow and set a specific width */}
-                    <Box sx={{ width: '30%' }}>
+                        <Box sx={{ flexGrow: 1 }}>
+
                         <ChatInput
-                            onSendMessage={handleSendMessage}
-                            showLeftNav={showLeftNav}
-                            setLeftNav={setLeftNav}
-                        />
+                            onSendMessage={handleSendMessage}
+                            showLeftNav={showLeftNav}
+                            setLeftNav={setLeftNav}
+                                
+                        />
                     </Box>
                 </Box>
             </Box>

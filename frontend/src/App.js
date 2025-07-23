@@ -108,6 +108,7 @@ function MainApp() {
           display: 'flex',
           overflow: 'hidden',
           backgroundColor: isMobile ? 'inherit' : 'inherit',
+          
           minHeight: 0 // This is critical for flexbox to work properly
         }}
       >

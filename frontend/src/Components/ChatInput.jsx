@@ -138,7 +138,7 @@ function ChatInput({ onSendMessage, showLeftNav, setLeftNav }) {
 
   if (!isMobile) {
     return (
-      <Box sx={{ width: '100%', px: 2 }}> {/* Wrapper Box to contain Chip and TextField */}
+      <Box sx={{ width: '100%' }}> {/* Wrapper Box to contain Chip and TextField */}
         {hiddenFileInput}
         {fileChipDisplay}
         <Grid container item className="sendMessageContainer" alignItems="center">
@@ -174,18 +174,19 @@ function ChatInput({ onSendMessage, showLeftNav, setLeftNav }) {
       {fileChipDisplay}
       <Grid container item className="sendMessageContainer" alignItems="center">
         <Grid item xs={1} container alignItems="center" justifyContent="center">
-          <IconButton
+          {/* <IconButton
             aria-label="menu"
             onClick={() => setLeftNav(!showLeftNav)}
             color="primary"
           >
             <MenuIcon />
-          </IconButton>
+          </IconButton> */}
         </Grid>
-        <Grid item xs={11}>
+        <Grid item xs={12}>
           <TextField
             className="sendMessageContainer"
             multiline={false}
+            
             fullWidth
             
             disabled={isListening}

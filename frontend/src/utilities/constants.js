@@ -7,13 +7,13 @@ export const primary_50 = "#3366ff"; // The 50 variant of the primary color
 export const SECONDARY_MAIN = "#03fc5a"; // The main secondary color used for less prominent elements
 
 // Chat component background colors
-export const CHAT_BODY_BACKGROUND = "#03fc5a"; // 003300 Background color for the chat body area
+export const CHAT_BODY_BACKGROUND = "#FFFFFF"; // 003300 Background color for the chat body area
 export const CHAT_LEFT_PANEL_BACKGROUND = "#003A5D"; // Background color for the left panel in the chat
 export const ABOUT_US_HEADER_BACKGROUND = "#FFFFFF"; // Background color for the About Us section in the left panel
 export const FAQ_HEADER_BACKGROUND = "#FFFFFF"; // Background color for the FAQ section in the left panel
 export const ABOUT_US_TEXT = "#FFFFFF"; // Text color for the About Us section in the left panel
 export const FAQ_TEXT = "#FFFFFF"; // Text color for the FAQ section in the left panel
-export const HEADER_BACKGROUND = "#3366ff"; // Background color for the header
+export const HEADER_BACKGROUND = "#F6F6F6"; // Background color for the header
 export const HEADER_TEXT_GRADIENT = "linear-gradient(90deg, #003A5D, #6BC049)"; // Text gradient color for the header
 //D3D3D3
 // 6BC049
