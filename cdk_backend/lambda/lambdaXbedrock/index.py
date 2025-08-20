@@ -91,7 +91,7 @@ OPENSEARCH_PAGE_FIELD = os.environ.get('OPENSEARCH_PAGE_FIELD', 'AMAZON_BEDROCK_
 KNOWLEDGE_BASE_ID = os.environ.get('KNOWLEDGE_BASE_ID')
 WEBSOCKET_CALLBACK_URL = os.environ.get('URL')
 S3_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME')
-LLM_MODEL_ID = os.environ.get('LLM_MODEL_ID', "anthropic.claude-3-5-sonnet-20240620-v1:0") # Allow override, default to Sonnet 3.5
+LLM_MODEL_ID = os.environ.get('LLM_MODEL_ID', "anthropic.claude-3-7-sonnet-20250219-v1:0")
 
 # --- End Environment Variables ---
 

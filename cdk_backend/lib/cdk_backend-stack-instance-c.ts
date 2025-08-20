@@ -1,4 +1,4 @@
-// lib/cdk_backend-stack-instance-b.ts
+// lib/cdk_backend-stack-instance-c.ts
 
 import * as cdk from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
@@ -123,9 +123,26 @@ export class CdkBackendStackInstanceC extends cdk.Stack {
         ],
         resources: [
             kb.knowledgeBaseArn, // Access to the specific KB
-            `arn:aws:bedrock:${this.region}::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0`, // Access to the specific LLM
+            `arn:aws:bedrock:${this.region}::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0`,
+
+            // `arn:aws:bedrock:${this.region}::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0`, // Access to the specific LLM
         ],
     }));
+
+  lambdaXbedrock.addToRolePolicy(new iam.PolicyStatement({
+  actions: ['bedrock:InvokeModel*'],
+  resources: [
+    'arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0',
+    'arn:aws:bedrock:us-east-2::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0',
+    'arn:aws:bedrock:us-west-2::foundation-model/anthropic.claude-3-7-sonnet-20250219-v1:0',
+  ],
+  conditions: {
+    StringLike: {
+      'bedrock:InferenceProfileArn':
+        `arn:aws:bedrock:${this.region}:${this.account}:inference-profile/us.anthropic.claude-3-7-sonnet-20250219-v1:0`,
+    },
+  },
+}));
     // 2. WebSocket Send permissions (API Gateway Management API)
     lambdaXbedrock.addToRolePolicy(new iam.PolicyStatement({
         actions: ['execute-api:ManageConnections'], // To send messages back via WebSocket
