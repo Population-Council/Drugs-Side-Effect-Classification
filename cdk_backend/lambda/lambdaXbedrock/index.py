@@ -1,4 +1,5 @@
 # lambda/lambdaXbedrock/index.py
+
 import os
 import json
 import boto3
@@ -7,14 +8,14 @@ import logging
 import urllib.parse
 from botocore.exceptions import ClientError
 
-# Optional OpenSearch imports (via your layer)
+from constants import load_from_env, REFERENCE_URLS
+
+# --- Optional OpenSearch imports (via your layer) ---
 try:
     from opensearchpy import OpenSearch, RequestsHttpConnection, AWSV4SignerAuth
     _OPENSEARCH_AVAILABLE = True
 except Exception:
     _OPENSEARCH_AVAILABLE = False
-
-from constants import load_from_env, REFERENCE_URLS
 
 cfg = load_from_env()
 
@@ -36,7 +37,7 @@ s3 = boto3.client("s3") if cfg.S3_BUCKET_NAME else None
 
 MODEL_ID = cfg.INFERENCE_PROFILE_ID or cfg.LLM_MODEL_FALLBACK_ID
 
-# ---------- Runtime JSON KBs (loaded on cold start, refreshed by ETag) ----------
+# ---------- Runtime JSON KBs ----------
 _RUNTIME_KB = None
 _PERSONAL_KB = None
 _RUNTIME_LAST_ETAG = None
@@ -47,7 +48,7 @@ def _get_env(name, default=""):
     return getattr(cfg, name, None) or os.environ.get(name, default)
 
 def _get_s3_object_text(key):
-    """Read a small text file from S3. Degrade gracefully if not present/authorized."""
+    """Read a small JSON file (runtime/personal) from S3."""
     if not s3 or not _get_env("S3_BUCKET_NAME") or not key:
         return "", None
     try:
@@ -56,28 +57,28 @@ def _get_s3_object_text(key):
         etag = (obj.get("ETag") or "").strip('"')
         return body, (etag or None)
     except Exception as e:
-        logger.warning(f"Optional runtime file not loaded {key}: {e}")
+        logger.error(f"Failed to read S3 object {key}: {e}")
         return "", None
 
 def _load_runtime_kbs(force=False):
-    """Best-effort load of runtime JSONs."""
+    """Cold-start loader with ETag caching."""
     global _RUNTIME_KB, _PERSONAL_KB, _RUNTIME_LAST_ETAG, _PERSONAL_LAST_ETAG
 
-    rk_key = _get_env("RUNTIME_KB_KEY")
+    rk_key = _get_env("RUNTIME_KB_KEY")   # e.g., runtime/HIV_DDM_Chatbot_KB.json
     if rk_key:
         txt, etag = _get_s3_object_text(rk_key)
         if txt and (force or etag != _RUNTIME_LAST_ETAG or _RUNTIME_KB is None):
             _RUNTIME_KB = json.loads(txt)
             _RUNTIME_LAST_ETAG = etag
-            logger.info(f"Loaded RUNTIME_KB key={rk_key} version={( _RUNTIME_KB.get('meta') or {}).get('version')}")
+            logger.info(f"Loaded RUNTIME_KB key={rk_key} version={(_RUNTIME_KB.get('meta') or {}).get('version')}")
 
-    pk_key = _get_env("PERSONAL_KB_KEY")
+    pk_key = _get_env("PERSONAL_KB_KEY")  # e.g., runtime/personal_cat_kb.json
     if pk_key:
         txt, etag = _get_s3_object_text(pk_key)
         if txt and (force or etag != _PERSONAL_LAST_ETAG or _PERSONAL_KB is None):
             _PERSONAL_KB = json.loads(txt)
             _PERSONAL_LAST_ETAG = etag
-            logger.info(f"Loaded PERSONAL_KB key={pk_key} version={( _PERSONAL_KB.get('meta') or {}).get('version')}")
+            logger.info(f"Loaded PERSONAL_KB key={pk_key} version={(_PERSONAL_KB.get('meta') or {}).get('version')}")
 
 def _ensure_config_loaded():
     global _CONFIG_LOADED
@@ -85,120 +86,43 @@ def _ensure_config_loaded():
         _load_runtime_kbs(force=True)
         _CONFIG_LOADED = True
 
-# ---------- Normalization + runtime matching ----------
-def _normalize_text(s: str) -> str:
-    s = s or ""
-    s = s.lower()
-    s = re.sub(r"[’']", " ", s)
-    s = re.sub(r"[^a-z0-9]+", " ", s)
-    return re.sub(r"\s+", " ", s).strip()
+# ---------- Personal & Runtime matching ----------
+def _norm(s: str) -> str:
+    return (s or "").lower().strip()
 
-def _norm_contains(big: str, small: str) -> bool:
-    return _normalize_text(small) in _normalize_text(big)
-
-def _ctx_from_entities() -> dict:
-    """Build a dict so {{user.cat_name}} can be rendered."""
-    ctx = {}
-    ents = (_RUNTIME_KB or {}).get("entities", {})
-    for k, v in ents.items():
-        parts = k.split(".")
-        d = ctx
-        for seg in parts[:-1]:
-            d = d.setdefault(seg, {})
-        d[parts[-1]] = v
-    return ctx
-
-def _render_template(tpl: str, ctx: dict) -> str:
-    """Very small {{ dotted.keys }} renderer."""
-    if not tpl:
-        return ""
-    def repl(m):
-        key = (m.group(1) or "").strip()
-        cur = ctx
-        for seg in key.split("."):
-            if isinstance(cur, dict) and seg in cur:
-                cur = cur[seg]
-            else:
-                return m.group(0)
-        return str(cur)
-    return re.sub(r"\{\{\s*([^}]+)\s*\}\}", repl, tpl)
-
-def _runtime_item_is_link_only(item: dict) -> bool:
-    """Decide if a runtime QnA item should answer with title+link only."""
-    if not item:
-        return False
-    if item.get("link_only") is True:
-        return True
-    if (item.get("mode") or "").lower() == "link_only":
-        return True
-    # If template has placeholders, also treat as link-only to avoid printing scaffolding
-    tpl = item.get("answer_template") or ""
-    if "[VALUE]" in tpl or "[YEAR]" in tpl:
-        return True
-    return False
-
-def _answer_from_runtime_qna(item: dict) -> tuple[str, list]:
-    """
-    Build final text + (optional) sources from a runtime QnA item.
-    If link_only => just 'Title: <URL>' in chat; still emits the source bubble once.
-    """
-    ctx = _ctx_from_entities()
-    sources = []
-    url = item.get("source_url")
-    title = item.get("title") or item.get("name") or (url and _title_for_url(url)) or "Source"
-
-    # LINK-ONLY path (your 10 routing items): title + URL, nothing else.
-    if _runtime_item_is_link_only(item):
-        if url:
-            text = f"{title}: <{url}>"
-            sources.append({"url": url, "label": _title_for_url(url)})
-        else:
-            text = title
-        return text, sources
-
-    # Normal rich answer (used for other runtime items)
-    parts = []
-    main = _render_template(item.get("answer_template") or "", ctx).strip()
-    if main:
-        parts.append(main)
-
-    steps = item.get("how_to_find") or []
-    if steps:
-        parts.append("**How to find it:**")
-        for s in steps:
-            parts.append(f"• {s}")
-
-    if url:
-        parts.append(f"Source: <{url}>")
-        sources.append({"url": url, "label": _title_for_url(url)})
-
-    return "\n".join(parts).strip(), sources
-
-def _match_runtime_qna(prompt: str) -> dict | None:
-    if not _RUNTIME_KB:
-        return None
-    for item in _RUNTIME_KB.get("qna", []):
-        qe = item.get("question_exact") or ""
-        if qe and _norm_contains(prompt, qe):
-            return item
-        for p in (item.get("patterns") or []):
-            if p and _norm_contains(prompt, p):
-                return item
-    return None
-
-def _match_personal(prompt: str) -> dict | None:
+def _match_personal(prompt: str):
+    """Exact or pattern match against personal JSON (e.g., cat name)."""
     if not _PERSONAL_KB:
         return None
-    q = _normalize_text(prompt)
+    q = _norm(prompt)
     for item in _PERSONAL_KB.get("qna", []):
-        if item.get("question_exact") and _norm_contains(q, item["question_exact"]):
+        if _norm(item.get("question_exact")) == q:
             return item
-        for p in item.get("patterns", []):
-            if p and _norm_contains(q, p):
+        for p in item.get("patterns", []) or []:
+            if p and _norm(p) in q:
                 return item
     return None
 
-# ---------- UI helpers ----------
+def _match_runtime(prompt: str):
+    """Exact or pattern match against runtime routing JSON (10 items)."""
+    if not _RUNTIME_KB:
+        return None
+    q = _norm(prompt)
+    for item in _RUNTIME_KB.get("qna", []):
+        if _norm(item.get("question_exact")) == q:
+            return item
+        for p in item.get("patterns", []) or []:
+            if p and _norm(p) in q:
+                return item
+    return None
+
+def _get_source_meta(source_code: str) -> dict | None:
+    try:
+        return (_RUNTIME_KB or {}).get("sources", {}).get(source_code)
+    except Exception:
+        return None
+
+# --- Markdown helpers ---
 def _md_link(url: str, label: str | None = None) -> str:
     try:
         host = urllib.parse.urlparse(url).netloc or url
@@ -207,19 +131,24 @@ def _md_link(url: str, label: str | None = None) -> str:
     return f"[{label or host}]({url})"
 
 def _title_for_url(url: str) -> str:
-    """
-    Prefer the filename if present (even if it has an extension),
-    otherwise fall back to a tidy host name.
-    """
     try:
         p = urllib.parse.urlparse(url)
         host = (p.netloc or "").lower()
         path_last = (p.path.rstrip("/").split("/")[-1] if p.path else "").replace("-", " ").strip()
     except Exception:
         host, path_last = "", ""
-
-    if path_last:
-        return path_last
+    domain_map = {
+        "aidsinfo.unaids.org": "UNAIDS AIDSinfo",
+        "www.who.int": "World Health Organization (WHO)",
+        "who.int": "World Health Organization (WHO)",
+        "prepwatch.org": "PrEPWatch",
+        "phia.icap.columbia.edu": "ICAP PHIA",
+        "icap.columbia.edu": "ICAP at Columbia University"
+    }
+    if host in domain_map:
+        return domain_map[host]
+    if path_last and "." not in path_last:
+        return path_last.title()
     if host:
         parts = host.split(".")
         if len(parts) > 2:
@@ -227,22 +156,104 @@ def _title_for_url(url: str) -> str:
         return host
     return url
 
-# ---------- Query gating ----------
+def _reply_link_only(connection_id: str, item: dict):
+    """Emit exactly 'Title: URL' where URL is clickable (title stays plain text)."""
+    url = (item.get("source_url") or "").strip()
+    title = None
+    if not url:
+        meta = _get_source_meta(item.get("primary_source", ""))
+        if meta:
+            url = (meta.get("url") or "").strip()
+            title = meta.get("name", None)
+    if not title:
+        meta = _get_source_meta(item.get("primary_source", ""))
+        title = (meta or {}).get("name") or (item.get("primary_source") or "Link")
+
+    # Make only the URL clickable by using a markdown link whose label is the URL itself
+    text = f"{title}: {_md_link(url, url)}"
+    _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": text})
+    _send_ws(connection_id, {"type": "end", "statusCode": 200})
+
+# ---------- Runtime teaching context ----------
+def _runtime_relevant_resources(prompt: str, top_n: int = 4) -> list[dict]:
+    """Rank runtime resources by simple token overlap with name/summary/match_terms."""
+    resources = (_RUNTIME_KB or {}).get("resources", [])
+    if not resources:
+        return []
+
+    q_tokens = set(re.findall(r"[a-z0-9\-]+", _norm(prompt)))
+    scored = []
+    for r in resources:
+        text = " ".join([
+            r.get("name", ""),
+            r.get("summary", ""),
+            " ".join(r.get("when_to_use", []) or []),
+            " ".join(r.get("match_terms", []) or []),
+            r.get("category", "")
+        ]).lower()
+        r_tokens = set(re.findall(r"[a-z0-9\-]+", text))
+        overlap = len(q_tokens.intersection(r_tokens))
+        # small bonuses for category matches by obvious keywords
+        if "agyw" in q_tokens and "agyw" in r_tokens:
+            overlap += 2
+        if "district" in q_tokens or "subnational" in q_tokens:
+            if "sub" in r_tokens or "district" in r_tokens:
+                overlap += 1
+        if "prep" in q_tokens and "prep" in r_tokens:
+            overlap += 2
+        if "testing" in q_tokens and "statcompiler" in r.get("name","").lower():
+            overlap += 1
+
+        if overlap > 0:
+            scored.append((overlap, r))
+
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [r for _, r in scored[:max(1, top_n)]]
+
+def _build_runtime_context(prompt: str) -> str:
+    """Format top runtime resources into a compact guidance block."""
+    try:
+        rules = "\n".join((_RUNTIME_KB or {}).get("style", {}).get("answer_rules", [])[:3])
+        picks = _runtime_relevant_resources(prompt, top_n=4)
+        lines = []
+        for r in picks:
+            name = r.get("name", "Resource")
+            url = r.get("url", "")
+            summary = r.get("summary", "")
+            use = "; ".join(r.get("when_to_use", [])[:2]) if r.get("when_to_use") else ""
+            caveat = "; ".join(r.get("caveats", [])[:1]) if r.get("caveats") else ""
+            bits = [summary]
+            if use:
+                bits.append(f"When to use: {use}")
+            if caveat:
+                bits.append(f"Caveat: {caveat}")
+            joined = " ".join([b for b in bits if b]).strip()
+            if url:
+                lines.append(f"- {name} — {joined} (URL: {url})")
+            else:
+                lines.append(f"- {name} — {joined}")
+        rules_block = f"<answer_rules>\n{rules}\n</answer_rules>\n" if rules else ""
+        picks_block = "\n".join(lines) if lines else ""
+        if not (rules_block or picks_block):
+            return ""
+        return f"{rules_block}<runtime_resource_map>\n{picks_block}\n</runtime_resource_map>"
+    except Exception:
+        return ""
+
+# ---------- HIV gating ----------
+_HIV_TOKENS = {
+    "hiv", "aids", "prep", "pre-exposure", "prophylaxis", "incidence", "prevalence",
+    "who", "unaids", "scorecards", "gpc", "statcompiler", "dhis2", "phia",
+    "agyw", "key", "populations", "psat", "shipp"
+}
+
+def _should_use_kb(prompt: str) -> bool:
+    toks = set(re.findall(r"[a-z0-9\-]+", _norm(prompt)))
+    return any(t in toks for t in _HIV_TOKENS)
+
+# ---------- Suggested reference picking ----------
 def _tokenize(text: str) -> set[str]:
     return set(re.findall(r"[a-z0-9]+", text.lower()))
-
-def _is_health_query(prompt: str) -> bool:
-    toks = _tokenize(prompt)
-    return any(t in toks for t in {
-        "hiv","aids","prep","incidence","prevalence","who","unaids",
-        "scorecard","statcompiler","phia","agyw","zomba","malawi","tanzania","kenya","mozambique"
-    })
-
-def _is_best_link_intent(prompt: str) -> bool:
-    q = _normalize_text(prompt)
-    return any(kw in q for kw in [
-        "best link", "give me a link", "provide a link", "link for", "where can i find", "where can i get"
-    ])
 
 def _url_tokens(u: str) -> set[str]:
     try:
@@ -257,9 +268,9 @@ def _pick_reference_url(prompt: str) -> str | None:
     if not REFERENCE_URLS:
         return None
     q = _tokenize(prompt)
-    if "prep" in q: q.update({"pre","preexposure","prophylaxis"})
+    if "prep" in q: q.update({"pre", "preexposure", "prophylaxis"})
     if "hiv" in q: q.update({"aids"})
-    if "who" in q: q.update({"world","health","organization"})
+    if "who" in q: q.update({"world", "health", "organization"})
     if "kenya" in q: q.update({"ke"})
     if "zimbabwe" in q: q.update({"zw"})
     if "uganda" in q: q.update({"ug"})
@@ -275,7 +286,7 @@ def _pick_reference_url(prompt: str) -> str | None:
             best_score, best_url = score, u
     return best_url or REFERENCE_URLS[0]
 
-# ---------- OpenSearch client (optional) ----------
+# ---------- OpenSearch (optional COUNT support) ----------
 _os = None
 if _OPENSEARCH_AVAILABLE and cfg.OPENSEARCH_ENDPOINT:
     try:
@@ -287,9 +298,11 @@ if _OPENSEARCH_AVAILABLE and cfg.OPENSEARCH_ENDPOINT:
         _os = OpenSearch(
             hosts=[{"host": host, "port": 443}],
             http_auth=auth,
-            use_ssl=True, verify_certs=True,
+            use_ssl=True,
+            verify_certs=True,
             connection_class=RequestsHttpConnection,
-            timeout=30, pool_maxsize=20,
+            timeout=30,
+            pool_maxsize=20,
         )
         _ = _os.ping()
         logger.info("OpenSearch client initialized.")
@@ -298,6 +311,152 @@ if _OPENSEARCH_AVAILABLE and cfg.OPENSEARCH_ENDPOINT:
         _os = None
 elif not _OPENSEARCH_AVAILABLE and cfg.OPENSEARCH_ENDPOINT:
     logger.warning("OpenSearch layer not available; COUNT disabled.")
+
+_COUNT_STARTERS = (
+    "how many papers", "count papers", "number of papers", "how many documents",
+    "count documents", "list papers containing", "list documents containing",
+    "count documents mentioning", "count documents about"
+)
+
+def _looks_like_count(q: str) -> bool:
+    ql = _norm(q)
+    if any(ql.startswith(s) for s in _COUNT_STARTERS):
+        return True
+    return ("how many" in ql and ("mention" in ql or "contain" in ql)) or ql.startswith("list ")
+
+def _extract_keyword(q: str) -> str | None:
+    m = re.search(r'"([^"]+)"', q) or re.search(r"'([^']+)'", q)
+    if m:
+        kw = m.group(1).strip()
+        return kw if kw else None
+    ql = q.lower()
+    for trigger in ["mention ", "containing ", "contain ", "about "]:
+        if trigger in ql:
+            start = ql.index(trigger) + len(trigger)
+            tail = q[start:].strip()
+            token = tail.split("?")[0].split(",")[0].strip()
+            token = " ".join(token.split()[:5]).strip('.,!?\";\'')
+            if token:
+                return token
+    return None
+
+def _clean_filename(s3_uri: str) -> str:
+    if not s3_uri:
+        return "Unknown source"
+    try:
+        if s3_uri.startswith("s3://"):
+            part = s3_uri.split("/", 3)[-1]
+        elif s3_uri.startswith("https://"):
+            from urllib.parse import urlparse, unquote
+            parsed = urlparse(s3_uri)
+            part = parsed.path.lstrip("/")
+            return unquote(part.split("/")[-1]) or "Unknown source"
+        else:
+            part = s3_uri
+        from urllib.parse import unquote
+        return unquote(part.split("/")[-1]) or "Unknown source"
+    except Exception:
+        return s3_uri.split("/")[-1] if "/" in s3_uri else s3_uri
+
+def _doc_url_from_s3_uri(s3_uri: str) -> str:
+    if not s3_uri or not s3_uri.startswith("s3://"):
+        return s3_uri or ""
+    try:
+        parts = s3_uri[5:].split("/", 1)
+        if len(parts) != 2:
+            return s3_uri
+        bucket, key = parts[0], parts[1]
+        if s3 and cfg.S3_BUCKET_NAME and bucket == cfg.S3_BUCKET_NAME:
+            try:
+                return s3.generate_presigned_url(
+                    "get_object",
+                    Params={
+                        "Bucket": bucket,
+                        "Key": key,
+                        "ResponseContentDisposition": "inline",
+                    },
+                    ExpiresIn=3600,
+                )
+            except Exception as e:
+                logger.warning(f"Presign failed for {s3_uri}: {e}")
+        return f"https://{bucket}.s3.amazonaws.com/{key}"
+    except Exception:
+        return s3_uri
+
+def _unique_sources(items: list[dict]) -> list[dict]:
+    seen = set()
+    out = []
+    for it in items or []:
+        url = (it.get("url") or "").strip()
+        page = it.get("page")
+        key = (url, page if isinstance(page, (int, float, str)) else None)
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(it)
+    return out
+
+def _os_count_keyword(keyword: str) -> tuple[str, str, list[dict]]:
+    if not _os or not cfg.OPENSEARCH_INDEX:
+        raise RuntimeError("OpenSearch not configured.")
+    text_field = cfg.OPENSEARCH_TEXT_FIELD or "AMAZON_BEDROCK_TEXT_CHUNK"
+    doc_id_field = cfg.OPENSEARCH_DOC_ID_FIELD or "x-amz-bedrock-kb-source-uri.keyword"
+    page_field = cfg.OPENSEARCH_PAGE_FIELD or "x-amz-bedrock-kb-document-page-number"
+    body = {
+        "size": 0,
+        "query": {"match": {text_field: {"query": keyword, "operator": "and"}}},
+        "aggs": {
+            "unique_docs_matching": {"cardinality": {"field": doc_id_field}},
+            "docs": {
+                "terms": {"field": doc_id_field, "size": 200},
+                "aggs": {"pages": {"terms": {"field": page_field, "size": 200, "order": {"_key": "asc"}}}}
+            },
+            "all_docs": {"global": {}, "aggs": {"total_unique_docs": {"cardinality": {"field": doc_id_field}}}}
+        }
+    }
+    resp = _os.search(index=cfg.OPENSEARCH_INDEX, body=body, request_timeout=60)
+    aggs = resp.get("aggregations") or {}
+    unique_match = (aggs.get("unique_docs_matching") or {}).get("value") or 0
+    total_unique = ((aggs.get("all_docs") or {}).get("total_unique_docs") or {}).get("value")
+    if total_unique is not None and total_unique > 0:
+        summary = f'The keyword "{keyword}" appears in {unique_match} of {total_unique} papers.'
+    else:
+        summary = f'The keyword "{keyword}" appears in {unique_match} papers.'
+    lines = []
+    sources_list: list[dict] = []
+    buckets = ((aggs.get("docs") or {}).get("buckets") or [])
+    for i, b in enumerate(buckets, 1):
+        s3_uri = b.get("key", "")
+        doc_url = _doc_url_from_s3_uri(s3_uri)
+        display = _clean_filename(s3_uri)
+        pages_b = (b.get("pages") or {}).get("buckets") or []
+        pages = []
+        for pb in pages_b:
+            k = pb.get("key")
+            try:
+                if isinstance(k, (int, float)):
+                    pages.append(int(k))
+                elif isinstance(k, str) and k.isdigit():
+                    pages.append(int(k))
+            except Exception:
+                pass
+        pages = sorted(set(pages))
+        if doc_url:
+            title_md = _md_link(doc_url, display)
+            if pages:
+                page_links = ", ".join(_md_link(f"{doc_url}#page={p}", str(p)) for p in pages)
+                lines.append(f"{i}. {title_md} (pages: {page_links})")
+            else:
+                lines.append(f"{i}. {title_md} (pages: unknown)")
+        else:
+            page_str = ", ".join(map(str, pages)) if pages else "unknown"
+            lines.append(f"{i}. {display} (pages: {page_str})")
+        src_obj: dict = {"url": doc_url or s3_uri, "label": display}
+        if pages:
+            src_obj["page"] = pages[0]
+        sources_list.append(src_obj)
+    details = "\n".join(lines) if lines else "No documents listed."
+    return summary, details, sources_list
 
 # ---------- WebSocket helpers ----------
 def _send_ws(connection_id: str, payload: dict):
@@ -313,71 +472,9 @@ def _end_with_error(connection_id: str, message: str, code: int = 500):
     _send_ws(connection_id, {"type": "error", "statusCode": code, "text": message})
     _send_ws(connection_id, {"type": "end", "statusCode": code})
 
-# ---------- URL / source helpers ----------
-def _clean_filename(s3_uri_or_url: str) -> str:
-    u = s3_uri_or_url or ""
-    try:
-        if u.startswith("s3://"):
-            part = u.split("/", 3)[-1]
-            from urllib.parse import unquote
-            return unquote(part.split("/")[-1]) or "Unknown source"
-        if u.startswith("https://"):
-            from urllib.parse import urlparse, unquote
-            parsed = urlparse(u)
-            part = parsed.path.lstrip("/")
-            return unquote(part.split("/")[-1]) or "Unknown source"
-        if u:
-            return u.split("/")[-1] or u
-        return "Unknown source"
-    except Exception:
-        return u
-
-def _doc_url_from_s3_uri(s3_uri: str) -> str:
-    """Return presigned HTTPS URL for own bucket, else public-style URL."""
-    if not s3_uri or not s3_uri.startswith("s3://"):
-        return s3_uri or ""
-    try:
-        parts = s3_uri[5:].split("/", 1)
-        if len(parts) != 2:
-            return s3_uri
-        bucket, key = parts[0], parts[1]
-        if s3 and cfg.S3_BUCKET_NAME and bucket == cfg.S3_BUCKET_NAME:
-            try:
-                return s3.generate_presigned_url(
-                    "get_object",
-                    Params={"Bucket": bucket, "Key": key, "ResponseContentDisposition": "inline"},
-                    ExpiresIn=3600,
-                )
-            except Exception as e:
-                logger.warning(f"Presign failed for {s3_uri}: {e}")
-        return f"https://{bucket}.s3.amazonaws.com/{key}"
-    except Exception:
-        return s3_uri
-
-def _unique_sources_by_docid(sources: list[dict]) -> list[dict]:
-    """De-duplicate by original doc id (s3_uri) + page, ignoring presign params."""
-    seen = set()
-    out = []
-    for s in sources or []:
-        doc_id = s.get("doc_id") or s.get("url")
-        page = s.get("page")
-        key = (doc_id, page if isinstance(page, (int, float, str)) else None)
-        if key in seen:
-            continue
-        seen.add(key)
-        out.append(s)
-    return out
-
-# ---------- KB retrieval ----------
+# ---------- Bedrock KB retrieval ----------
 def _kb_retrieve(prompt: str, kb_id: str, k: int = 5) -> tuple[str, list[dict]]:
-    """
-    Returns (combined_text, sources[]). Each source includes:
-      - url (presigned if same bucket)
-      - label (filename)
-      - page (int, optional)
-      - score (float, optional)
-      - doc_id (original s3://... URI)  <-- used for de-duplication
-    """
+    """Fetch top-k chunks + build presigned sources with labels."""
     if not kb_id:
         return "", []
     try:
@@ -389,20 +486,16 @@ def _kb_retrieve(prompt: str, kb_id: str, k: int = 5) -> tuple[str, list[dict]]:
         results = resp.get("retrievalResults") or []
         if not results:
             return "", []
-
-        snippets = []
-        sources = []
+        snippets: list[str] = []
+        sources: list[dict] = []
         for r in results:
             txt = (r.get("content") or {}).get("text", "")
             if txt:
                 snippets.append(txt)
-
             loc = (r.get("location") or {}).get("s3Location") or {}
-            s3_uri = loc.get("uri")  # original doc id
+            s3_uri = loc.get("uri")
             score = r.get("score")
             page = (r.get("metadata") or {}).get("x-amz-bedrock-kb-document-page-number")
-
-            # human-facing URL
             url = s3_uri
             if s3_uri and cfg.S3_BUCKET_NAME and s3 and s3_uri.startswith(f"s3://{cfg.S3_BUCKET_NAME}/"):
                 try:
@@ -414,21 +507,14 @@ def _kb_retrieve(prompt: str, kb_id: str, k: int = 5) -> tuple[str, list[dict]]:
                     )
                 except Exception as e:
                     logger.warning(f"Presign failed for {s3_uri}: {e}")
-            elif s3_uri and s3_uri.startswith("s3://"):
-                url = _doc_url_from_s3_uri(s3_uri)
-
-            src = {"url": url, "label": _clean_filename(s3_uri or url), "doc_id": s3_uri}
-            if page is not None:
-                try:
-                    src["page"] = int(page)
-                except Exception:
-                    pass
-            if isinstance(score, (int, float)):
-                src["score"] = float(score)
+            src: dict = {"url": url}
+            if page: src["page"] = page
+            if isinstance(score, (int, float)): src["score"] = float(score)
+            if url: src["label"] = _clean_filename(url)
             sources.append(src)
-
-        sources = _unique_sources_by_docid(sources)
-        return ("\n\n".join(snippets).strip(), sources[:k])
+        # de-dup
+        sources = _unique_sources(sources[:5])
+        return ("\n\n".join(snippets).strip(), sources)
     except ClientError as e:
         logger.error(f"KB retrieve ClientError: {e}")
         return "", []
@@ -436,73 +522,41 @@ def _kb_retrieve(prompt: str, kb_id: str, k: int = 5) -> tuple[str, list[dict]]:
         logger.error(f"KB retrieve unexpected error: {e}")
         return "", []
 
-# ---------- Core talk path ----------
-def _talk_link_only_best(connection_id: str, prompt: str):
-    """
-    Handle 'best link' intent: return one clean link (label = filename),
-    no raw URL string in the chat body. Clickable link is in markdown text
-    and repeated in the sources bubble. No model call here.
-    """
-    kb_text, kb_sources = _kb_retrieve(prompt, cfg.KNOWLEDGE_BASE_ID)
-    if kb_sources:
-        top = kb_sources[0]
-        url = top.get("url")
-        label = top.get("label") or (url and _clean_filename(url)) or "Source"
-        text = f"**Best link:** {_md_link(url, label)}"
-        _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": text + "\n"})
-        _send_ws(connection_id, {"type": "sources", "statusCode": 200, "sources": [top]})
-        _send_ws(connection_id, {"type": "end", "statusCode": 200})
-        return True
-
-    ref_url = _pick_reference_url(prompt)
-    if ref_url:
-        label = _title_for_url(ref_url)
-        text = f"**Best link:** {_md_link(ref_url, label)}"
-        _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": text + "\n"})
-        _send_ws(connection_id, {"type": "sources", "statusCode": 200, "sources": [{"url": ref_url, "label": label}]})
-        _send_ws(connection_id, {"type": "end", "statusCode": 200})
-        return True
-
-    return False
-
+# ---------- Model talk ----------
 def _talk_with_optional_kb(connection_id: str, prompt: str):
-    # If user asked for a "best link", do that and return
-    if _is_best_link_intent(prompt):
-        if _talk_link_only_best(connection_id, prompt):
-            return
+    use_kb = _should_use_kb(prompt)
 
-    # HEALTH GATE: only use KB & suggested refs for health-ish prompts
-    health = _is_health_query(prompt)
-
+    # Suggested reference only for HIV-ish queries
     ref_url = None
-    if health:
+    if use_kb:
         try:
             ref_url = _pick_reference_url(prompt)
             if ref_url:
+                ref_title = _title_for_url(ref_url)
                 _send_ws(connection_id, {
                     "type": "delta",
                     "statusCode": 200,
                     "format": "markdown",
-                    "text": f"**Suggested reference:** {_md_link(ref_url, _title_for_url(ref_url))}\n\n"
+                    "text": f"**Suggested reference:** {_md_link(ref_url, ref_title)}\n<{ref_url}>\n\n"
                 })
         except Exception:
-            ref_url = None
+            ref_url = None  # non-fatal
 
-    # Retrieve from KB only if health-related
+    # Build runtime teaching context (only for HIV-ish, non link-only flows)
+    runtime_ctx = _build_runtime_context(prompt) if use_kb else ""
+
     kb_text, kb_sources = ("", [])
-    if health:
+    if use_kb:
         kb_text, kb_sources = _kb_retrieve(prompt, cfg.KNOWLEDGE_BASE_ID)
 
-    # Build message for model
-    if kb_text:
+    # Compose message to the model: runtime map (teaching) first, then KB snippets
+    if runtime_ctx or kb_text:
         user_text = (
-            "Use the following knowledge snippets as your primary source. If they do not fully cover "
-            "the question, you may draw on general expertise to provide a helpful and accurate answer. "
-            "Briefly state assumptions if needed and note any critical missing info.\n"
-            f"(A helpful external reference may be: {ref_url or 'N/A'})\n"
-            "<knowledge_source>\n"
-            f"{kb_text}\n"
-            "</knowledge_source>\n\n"
+            "Use the following runtime routing map and brief bios to choose the right data source/tool. "
+            "Then consult the knowledge snippets if helpful to answer. "
+            "Be concise and avoid extraneous text.\n"
+            f"{runtime_ctx}\n"
+            f"<knowledge_source>\n{kb_text}\n</knowledge_source>\n\n"
             f"User question: {prompt}"
         )
     else:
@@ -514,7 +568,7 @@ def _talk_with_optional_kb(connection_id: str, prompt: str):
     messages = [{"role": "user", "content": [{"text": user_text}]}]
     system = [{"text": cfg.SYSTEM_PROMPT}] if cfg.SYSTEM_PROMPT else None
 
-    # Stream answer
+    # Stream answer (now flagging markdown so bare URLs become clickable)
     try:
         resp = brt.converse_stream(modelId=MODEL_ID, messages=messages, system=system)
     except ClientError as e:
@@ -531,7 +585,7 @@ def _talk_with_optional_kb(connection_id: str, prompt: str):
         if "contentBlockDelta" in ev:
             delta = (ev["contentBlockDelta"].get("delta") or {}).get("text")
             if delta:
-                _send_ws(connection_id, {"type": "delta", "statusCode": 200, "text": delta})
+                _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": delta})
         elif "messageStop" in ev:
             break
         elif "internalServerException" in ev or "modelStreamErrorException" in ev \
@@ -542,14 +596,13 @@ def _talk_with_optional_kb(connection_id: str, prompt: str):
             _end_with_error(connection_id, "Model streaming error.", 500)
             return
 
-    # Sources: include suggested ref + KB sources (only if health); de-duped
+    # Only send sources when we actually used KB or ref (and NOT for link_only/personal paths)
     sources_to_send = []
-    if health and ref_url:
-        sources_to_send.append({"url": ref_url, "label": _title_for_url(ref_url), "score": None})
-    if health and kb_sources:
+    if use_kb and kb_sources:
         sources_to_send.extend(kb_sources)
-
-    sources_to_send = _unique_sources_by_docid(sources_to_send)
+    if use_kb and ref_url:
+        sources_to_send.append({"url": ref_url, "label": _title_for_url(ref_url), "score": None})
+    sources_to_send = _unique_sources(sources_to_send)
     if sources_to_send:
         _send_ws(connection_id, {"type": "sources", "statusCode": 200, "sources": sources_to_send})
 
@@ -569,29 +622,44 @@ def lambda_handler(event, _context):
 
         logger.info(f"START event={json.dumps({k: event[k] for k in ['prompt','connectionId'] if k in event})}")
 
-        # Ensure runtime JSONs are loaded
         _ensure_config_loaded()
 
-        # 1) Optional personal intercept (e.g., cat name)
+        # 1) Personal intercepts (e.g., cat name)
         phit = _match_personal(prompt)
         if phit:
-            ans = (phit.get("answer_template") or "OK").strip()
-            _send_ws(connection_id, {"type": "delta", "statusCode": 200, "text": ans})
+            answer = phit.get("answer_template") or "Got it."
+            _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": answer})
             _send_ws(connection_id, {"type": "end", "statusCode": 200})
             return {"statusCode": 200, "body": "PERSONAL_KB_OK"}
 
-        # 2) Runtime QnA intercept (covers your 10 routing questions)
-        rhit = _match_runtime_qna(prompt)
-        if rhit:
-            text, srcs = _answer_from_runtime_qna(rhit)
-            if text:
-                _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": text + "\n"})
-            if srcs:
-                _send_ws(connection_id, {"type": "sources", "statusCode": 200, "sources": srcs})
-            _send_ws(connection_id, {"type": "end", "statusCode": 200})
-            return {"statusCode": 200, "body": "RUNTIME_QNA_OK"}
+        # 2) Runtime routing: link-only items (the 10 questions)
+        rhit = _match_runtime(prompt)
+        if rhit and rhit.get("link_only"):
+            _reply_link_only(connection_id, rhit)
+            return {"statusCode": 200, "body": "RUNTIME_LINK_ONLY_OK"}
 
-        # 3) Otherwise do normal talk (health prompts = RAG; non-health = no RAG)
+        # 3) COUNT flow (OpenSearch aggregation)
+        if _looks_like_count(prompt):
+            if not (_os and cfg.OPENSEARCH_INDEX and cfg.OPENSEARCH_TEXT_FIELD and cfg.OPENSEARCH_DOC_ID_FIELD and cfg.OPENSEARCH_PAGE_FIELD):
+                _end_with_error(connection_id, "Document counting is not configured.", 501)
+                return {"statusCode": 501, "body": "COUNT not configured"}
+            keyword = _extract_keyword(prompt)
+            if not keyword:
+                _end_with_error(connection_id, "I couldn't find the keyword to count. Try: how many papers mention \"cats\"?", 400)
+                return {"statusCode": 400, "body": "No keyword extracted"}
+            try:
+                summary, details_md, count_sources = _os_count_keyword(keyword)
+                _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": summary + "\n\n" + details_md})
+                if count_sources:
+                    _send_ws(connection_id, {"type": "sources", "statusCode": 200, "sources": _unique_sources(count_sources)})
+                _send_ws(connection_id, {"type": "end", "statusCode": 200})
+                return {"statusCode": 200, "body": "COUNT OK"}
+            except Exception as e:
+                logger.error(f"COUNT error: {e}", exc_info=True)
+                _end_with_error(connection_id, "There was a problem counting documents.", 500)
+                return {"statusCode": 500, "body": "COUNT error"}
+
+        # 4) Otherwise, normal talk (runtime teaching context + KB, gated to HIV-ish)
         _talk_with_optional_kb(connection_id, prompt)
         return {"statusCode": 200, "body": "OK"}
 
