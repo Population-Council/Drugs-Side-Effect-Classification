@@ -1,5 +1,3 @@
-// /home/zvallarino/AI_AWS_PC/Drugs-Side-Effect-Classification/frontend/src/Components/ChatBody.jsx
-
 import React, { useRef, useEffect, useState } from 'react';
 import { useCookies } from 'react-cookie';
 import { Box, Grid, Avatar, Typography } from '@mui/material';
@@ -17,6 +15,17 @@ import { useQuestion } from '../contexts/QuestionContext';
 import { useProcessing } from '../contexts/ProcessingContext';
 import BotReply from './BotReply';
 import { useRole } from '../contexts/RoleContext';
+
+/** ---- Frontend-only greeting (no backend changes) ---- */
+const TOBI_GREETING_MD = `**Hi — I’m Tobi.** I’m your virtual assistant for **SSLN & I2I**.
+
+I can help you:
+- Answer questions about programs, policies, and data
+- Surface the right resources (with links)
+- Summarize PDFs and preview uploaded videos
+- Draft brief notes, emails, and meeting summaries
+
+Ask me anything to get started. Type **/help** for tips.`;
 
 function UserReply({ message }) {
     return (
@@ -41,6 +50,9 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
     const messagesEndRef = useRef(null);
     const websocket = useRef(null);
     const [isWsConnected, setIsWsConnected] = useState(false);
+
+    /** Ensure the greeting is shown only once per mount */
+    const greetedRef = useRef(false);
 
     useEffect(() => {
        if (!WEBSOCKET_API) {
@@ -78,6 +90,26 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
             }
         };
     }, [setProcessing]);
+
+    /** Inject the Tobi greeting once, only if there are no prior messages.
+     *  We don't set questionAsked here so FAQ tiles remain visible. */
+    useEffect(() => {
+        if (!greetedRef.current && (!messageList || messageList.length === 0)) {
+            const timestamp = new Date().toISOString();
+            const botMessageBlock = createMessageBlock(
+                TOBI_GREETING_MD,
+                'BOT',
+                'TEXT',
+                'SENT',
+                '',
+                '',
+                [],
+                timestamp
+            );
+            addMessage(botMessageBlock);
+            greetedRef.current = true;
+        }
+    }, [messageList, addMessage]);
 
     useEffect(() => {
         scrollToBottom();
@@ -280,11 +312,10 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
                         <Box sx={{ flexGrow: 1 }}>
 
                         <ChatInput
-                            onSendMessage={handleSendMessage}
-                            showLeftNav={showLeftNav}
-                            setLeftNav={setLeftNav}
-                                
-                        />
+                            onSendMessage={handleSendMessage}
+                            showLeftNav={showLeftNav}
+                            setLeftNav={setLeftNav}
+                        />
                     </Box>
                 </Box>
             </Box>
