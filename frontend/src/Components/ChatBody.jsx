@@ -22,6 +22,7 @@ const TOBI_GREETING_MD = `**Hi — I’m Tobi.** I’m your virtual assistant fo
 I can help you:
 - Answer questions about programs, policies, and data
 - Surface the right resources (with links)
+- Compare two programs (with links)
 - Summarize PDFs 
 
 Ask me anything to get started. Type **/help** for tips.`;
