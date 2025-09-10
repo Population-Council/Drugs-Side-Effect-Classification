@@ -21,7 +21,7 @@ export const HEADER_TEXT_GRADIENT = "linear-gradient(90deg, #003A5D, #6BC049)"; 
 // Message background colors
 export const BOTMESSAGE_BACKGROUND = "#F5F5F5"; // Background color for messages sent by the bot
 export const BOTMESSAGE_TEXT_COLOR = "#000000"; // Text color for messages sent by the bot
-export const USERMESSAGE_BACKGROUND = "#003A5D"; // Background color for messages sent by the user
+export const USERMESSAGE_BACKGROUND = "#03fc5a"; // Background color for messages sent by the user
 export const USERMESSAGE_TEXT_COLOR = "#FFFFFF"; // Text color for messages sent by the user
 
 // --------------------------------------------------------------------------------------------------------//

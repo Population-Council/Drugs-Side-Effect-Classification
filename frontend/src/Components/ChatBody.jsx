@@ -24,9 +24,9 @@ function UserReply({ message }) {
            <Grid item className='userMessage' sx={{ backgroundColor: (theme) => theme.palette.background.userMessage, color: USERMESSAGE_TEXT_COLOR, padding: '10px 15px', borderRadius: '20px', maxWidth: '80%', wordWrap: 'break-word', mt: 1 }}>
                <Typography variant='body2'>{message}</Typography>
            </Grid>
-           <Grid item sx={{ mt: 1 }}>
+           {/* <Grid item sx={{ mt: 1 }}>
                <Avatar alt={'User Profile Pic'} src={UserAvatar} sx={{ width: 40, height: 40 }} />
-            </Grid>
+            </Grid> */}
         </Grid>
     );
 }
