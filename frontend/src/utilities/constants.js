@@ -4,7 +4,7 @@ export const PRIMARY_MAIN = "#003A5D"; // The main primary color used for button
 export const primary_50 = "#3366ff"; // The 50 variant of the primary color
 
 // Background color constants
-export const SECONDARY_MAIN = "#03fc5a"; // The main secondary color used for less prominent elements
+export const SECONDARY_MAIN = "#019485ff"; // The main secondary color used for less prominent elements
 
 // Chat component background colors
 export const CHAT_BODY_BACKGROUND = "#FFFFFF"; // 003300 Background color for the chat body area
@@ -21,7 +21,7 @@ export const HEADER_TEXT_GRADIENT = "linear-gradient(90deg, #003A5D, #6BC049)"; 
 // Message background colors
 export const BOTMESSAGE_BACKGROUND = "#F5F5F5"; // Background color for messages sent by the bot
 export const BOTMESSAGE_TEXT_COLOR = "#000000"; // Text color for messages sent by the bot
-export const USERMESSAGE_BACKGROUND = "#03fc5a"; // Background color for messages sent by the user
+export const USERMESSAGE_BACKGROUND = "#00A999"; // Background color for messages sent by the user
 export const USERMESSAGE_TEXT_COLOR = "#FFFFFF"; // Text color for messages sent by the user
 
 // --------------------------------------------------------------------------------------------------------//
