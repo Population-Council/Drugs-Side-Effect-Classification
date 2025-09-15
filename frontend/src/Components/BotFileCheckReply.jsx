@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Grid, Avatar, Typography, CircularProgress } from "@mui/material";
-import BotAvatar from "../Assets/BotAvatar.svg";
+import { Box, Typography, CircularProgress } from "@mui/material";
 import PdfIcon from "../Assets/pdf_logo.svg";
-import { BOTMESSAGE_BACKGROUND } from "../utilities/constants";
 import { useMessage } from "../contexts/MessageContext";
+import BotMessageBubble from "./BotMessageBubble";
 
 function BotFileCheckReply({ messageId }) {
   const { messageList } = useMessage();
@@ -17,7 +16,11 @@ function BotFileCheckReply({ messageId }) {
     if (animationState === "checking") {
       if (fileStatus === "File page limit check succeeded.") {
         timeout = setTimeout(() => setAnimationState("success"), 1000);
-      } else if (fileStatus === "File size limit exceeded." || fileStatus === "Network Error. Please try again later." || error) {
+      } else if (
+        fileStatus === "File size limit exceeded." ||
+        fileStatus === "Network Error. Please try again later." ||
+        error
+      ) {
         timeout = setTimeout(() => setAnimationState("fail"), 1000);
       }
     }
@@ -25,29 +28,34 @@ function BotFileCheckReply({ messageId }) {
   }, [animationState, fileStatus, error]);
 
   return (
-    <Grid container direction="row" justifyContent="flex-start" alignItems="center" spacing={2}>
-      <Grid item>
-        <Avatar alt="Bot Avatar" src={BotAvatar} />
-      </Grid>
-      <Grid item mt={2} style={{ background: BOTMESSAGE_BACKGROUND, borderRadius: 20, padding: 10 }}>
+    <Box sx={{ display: 'flex', justifyContent: 'flex-start' }}>
+      <BotMessageBubble>
         {fileStatus ? (
           <div>
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <img src={PdfIcon} alt="PDF Icon" style={{ width: 40, height: 40, borderRadius: "5px" }} />
+              <img
+                src={PdfIcon}
+                alt="PDF Icon"
+                style={{ width: 40, height: 40, borderRadius: "5px" }}
+              />
               <Typography variant="body2">{fileName}</Typography>
             </div>
-            <div className={`file-status-box ${animationState}`} style={{ marginTop: 8 }}>
+            <div style={{ marginTop: 8 }}>
               <Typography variant="body2" color={error ? "error" : "textPrimary"}>
-                {animationState === "checking" ? "Checking file size..." : fileStatus}
+                {animationState === "checking"
+                  ? "Checking file size..."
+                  : fileStatus}
               </Typography>
-              {animationState === "checking" && <CircularProgress size={24} className="loading" />}
+              {animationState === "checking" && (
+                <CircularProgress size={24} style={{ marginLeft: 8, verticalAlign: 'middle' }} />
+              )}
             </div>
           </div>
         ) : (
           <Typography variant="body2">{messageData.message}</Typography>
         )}
-      </Grid>
-    </Grid>
+      </BotMessageBubble>
+    </Box>
   );
 }
 
