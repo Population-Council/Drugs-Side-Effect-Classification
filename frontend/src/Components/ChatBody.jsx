@@ -3,7 +3,6 @@ import { useCookies } from 'react-cookie';
 import { Box, Grid, Avatar, Typography } from '@mui/material';
 import Attachment from './Attachment';
 import ChatInput from './ChatInput';
-import UserAvatar from '../Assets/UserAvatar.svg';
 import StreamingResponse from './StreamingResponse';
 import createMessageBlock from '../utilities/createMessageBlock';
 import { ALLOW_FILE_UPLOAD, ALLOW_VOICE_RECOGNITION, ALLOW_FAQ, USERMESSAGE_TEXT_COLOR, WEBSOCKET_API, ALLOW_CHAT_HISTORY, DISPLAY_SOURCES_BEDROCK_KB } from '../utilities/constants';
