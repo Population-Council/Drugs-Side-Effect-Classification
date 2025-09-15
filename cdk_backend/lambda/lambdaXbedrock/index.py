@@ -169,168 +169,6 @@ def _title_for_url(url: str) -> str:
         return host
     return url
 
-# --- NEW: one-liner + doc key helpers for KB source summaries ---
-def _one_liner(text: str, max_chars: int = 180) -> str:
-    """Extract a compact single-sentence-ish blurb from a chunk."""
-    t = (text or "").strip().replace("\n", " ")
-    m = re.search(r'(.+?[.!?])(\s|$)', t)
-    s = (m.group(1) if m else t)
-    s = re.sub(r'\s+', ' ', s).strip()
-    return (s[:max_chars] + "…") if len(s) > max_chars else s
-
-def _basename_from_url(u: str) -> str:
-    try:
-        p = urllib.parse.urlparse(u)
-        name = (p.path or "").split("/")[-1]
-        name = urllib.parse.unquote(name or "")
-        name = name.split("?")[0].split("#")[0]
-        return name
-    except Exception:
-        return u or ""
-
-def _doc_key_from_url(u: str) -> str:
-    """Stable key to match presigned and s3 URIs for the same doc."""
-    return _basename_from_url(u).lower()
-
-# ---------- Short display helpers ----------
-def _short_source_name(full_name: str) -> str:
-    name = (full_name or "").strip()
-    if not name:
-        return "Source"
-    if "(" in name and ")" in name:
-        try:
-            inside = name[name.index("(") + 1:name.index(")")].strip()
-            tail = name[name.index(")") + 1:].strip()
-            if inside and tail:
-                return f"{inside} {tail}".strip()
-            if inside:
-                return inside
-        except Exception:
-            pass
-    if "AIDSinfo" in name:
-        return "AIDSinfo"
-    if "PrEP-IT" in name or "PREP-IT" in name:
-        return "PrEP-IT"
-    if "STATcompiler" in name:
-        return "STATcompiler"
-    if ":" in name:
-        return name.split(":", 1)[1].strip() or name
-    parts = name.split()
-    if len(parts) > 1 and parts[0].upper() in {"UNAIDS", "WHO", "ICAP"}:
-        return " ".join(parts[1:]).strip()
-    return name
-
-def _question_to_statement(q: str) -> str:
-    if not q:
-        return ""
-    s = q.strip().rstrip(" ?!.")
-    for pat in [
-        r"^\s*what\s+is\s+(the\s+)?",
-        r"^\s*what'?s\s+(the\s+)?",
-        r"^\s*what\s+are\s+(the\s+)?",
-        r"^\s*where\s+can\s+i\s+find\s+",
-        r"^\s*how\s+can\s+i\s+",
-        r"^\s*how\s+do\s+i\s+",
-        r"^\s*which\s+",
-    ]:
-        if re.match(pat, s, flags=re.IGNORECASE):
-            s = re.sub(pat, "", s, flags=re.IGNORECASE).strip()
-            break
-    if s:
-        s = s[0].upper() + s[1:]
-    return s or q.strip().rstrip("?")
-
-def _ack_line_for_item(item: dict) -> str:
-    explicit_answer = (item.get("answer_text") or item.get("answer") or "").strip()
-    if explicit_answer:
-        return f"{explicit_answer} — here’s the best source:"
-    q = (item.get("question_exact") or "").strip()
-    stmt = _question_to_statement(q) if q else "Here’s the best source"
-    return f"{stmt} — here’s the best source:"
-
-def _reply_link_only(connection_id: str, item: dict):
-    """Link-only route with concise preface and a SINGLE clickable link."""
-    url = (item.get("source_url") or "").strip()
-    meta = _get_source_meta(item.get("primary_source", ""))
-    if not url and meta:
-        url = (meta.get("url") or "").strip()
-    full_name = (meta or {}).get("name") or (item.get("primary_source") or "Link")
-    short_name = (full_name or "Source").strip()
-    ack = _ack_line_for_item(item)
-    link_line = f"👉 {_md_link(url, _title_for_url(url) or f'the {short_name} Website')}" if url else f"👉 the {short_name} Website"
-    text = f"{ack}\n\n{short_name}\n\n{link_line}"
-    _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": text})
-    _send_ws(connection_id, {"type": "end", "statusCode": 200})
-
-# ---------- Runtime teaching context ----------
-def _runtime_relevant_resources(prompt: str, top_n: int = 4) -> list[dict]:
-    resources = (_RUNTIME_KB or {}).get("resources", [])
-    if not resources:
-        return []
-    q_tokens = set(re.findall(r"[a-z0-9\-]+", _norm(prompt)))
-    scored = []
-    for r in resources:
-        text = " ".join([
-            r.get("name", ""),
-            r.get("summary", ""),
-            " ".join(r.get("when_to_use", []) or []),
-            " ".join(r.get("match_terms", []) or []),
-            r.get("category", "")
-        ]).lower()
-        r_tokens = set(re.findall(r"[a-z0-9\-]+", text))
-        overlap = len(q_tokens.intersection(r_tokens))
-        if "agyw" in q_tokens and "agyw" in r_tokens:
-            overlap += 2
-        if "district" in q_tokens or "subnational" in q_tokens:
-            if "sub" in r_tokens or "district" in r_tokens:
-                overlap += 1
-        if "prep" in q_tokens and "prep" in r_tokens:
-            overlap += 2
-        if "testing" in q_tokens and "statcompiler" in r.get("name","").lower():
-            overlap += 1
-        if overlap > 0:
-            scored.append((overlap, r))
-    scored.sort(key=lambda x: x[0], reverse=True)
-    return [r for _, r in scored[:max(1, top_n)]]
-
-def _build_runtime_context(prompt: str) -> str:
-    try:
-        rules = "\n".join((_RUNTIME_KB or {}).get("style", {}).get("answer_rules", [])[:3])
-        picks = _runtime_relevant_resources(prompt, top_n=4)
-        lines = []
-        for r in picks:
-            name = r.get("name", "Resource")
-            url = r.get("url", "")
-            summary = r.get("summary", "")
-            use = "; ".join(r.get("when_to_use", [])[:2]) if r.get("when_to_use") else ""
-            caveat = "; ".join(r.get("caveats", [])[:1]) if r.get("caveats") else ""
-            bits = [summary]
-            if use:
-                bits.append(f"When to use: {use}")
-            if caveat:
-                bits.append(f"Caveat: {caveat}")
-            joined = " ".join([b for b in bits if b]).strip()
-            if url:
-                lines.append(f"- {name} — {joined} (URL: {url})")
-            else:
-                lines.append(f"- {name} — {joined}")
-        rules_block = f"<answer_rules>\n{rules}\n</answer_rules>\n" if rules else ""
-        picks_block = "\n".join(lines) if lines else ""
-        if not (rules_block or picks_block):
-            return ""
-        return f"{rules_block}<runtime_resource_map>\n{picks_block}\n</runtime_resource_map>"
-    except Exception:
-        return ""
-
-# ---------- HIV gating ----------
-_HIV_TOKENS = {
-    "hiv", "aids", "prep", "pre-exposure", "prophylaxis", "incidence", "prevalence", "who", "unaids",
-    "scorecards", "gpc", "statcompiler", "dhis2", "phia", "agyw", "key", "populations", "psat", "shipp"
-}
-def _should_use_kb(prompt: str) -> bool:
-    toks = set(re.findall(r"[a-z0-9\-]+", _norm(prompt)))
-    return any(t in toks for t in _HIV_TOKENS)
-
 # ---------- Suggested reference picking ----------
 def _tokenize(text: str) -> set[str]:
     return set(re.findall(r"[a-z0-9]+", text.lower()))
@@ -539,80 +377,6 @@ def _dedupe_sources_best(items: list[dict]) -> list[dict]:
             best_by_key[key] = it
     return [best_by_key[k] for k in order]
 
-# ---------- OpenSearch COUNT (details list already unique by doc id) ----------
-def _os_count_keyword(keyword: str) -> tuple[str, str, list[dict]]:
-    if not _os or not cfg.OPENSEARCH_INDEX:
-        raise RuntimeError("OpenSearch not configured.")
-    text_field = cfg.OPENSEARCH_TEXT_FIELD or "AMAZON_BEDROCK_TEXT_CHUNK"
-    doc_id_field = cfg.OPENSEARCH_DOC_ID_FIELD or "x-amz-bedrock-kb-source-uri.keyword"
-    page_field = cfg.OPENSEARCH_PAGE_FIELD or "x-amz-bedrock-kb-document-page-number"
-    body = {
-        "size": 0,
-        "query": {"match": {text_field: {"query": keyword, "operator": "and"}}},
-        "aggs": {
-            "unique_docs_matching": {"cardinality": {"field": doc_id_field}},
-            "docs": {
-                "terms": {"field": doc_id_field, "size": 200},
-                "aggs": {"pages": {"terms": {"field": page_field, "size": 200, "order": {"_key": "asc"}}}}
-            },
-            "all_docs": {"global": {}, "aggs": {"total_unique_docs": {"cardinality": {"field": doc_id_field}}}}
-        }
-    }
-    resp = _os.search(index=cfg.OPENSEARCH_INDEX, body=body, request_timeout=60)
-    aggs = resp.get("aggregations") or {}
-    unique_match = (aggs.get("unique_docs_matching") or {}).get("value") or 0
-    total_unique = ((aggs.get("all_docs") or {}).get("total_unique_docs") or {}).get("value")
-    summary = (
-        f'The keyword "{keyword}" appears in {unique_match} of {total_unique} papers.'
-        if total_unique not in (None, 0) else f'The keyword "{keyword}" appears in {unique_match} papers.'
-    )
-
-    lines = []
-    sources_list: list[dict] = []
-    buckets = ((aggs.get("docs") or {}).get("buckets") or [])
-    for i, b in enumerate(buckets, 1):
-        s3_uri = b.get("key", "")
-        doc_url = _doc_url_from_s3_uri(s3_uri)
-        display = _clean_filename(s3_uri)
-        pages_b = (b.get("pages") or {}).get("buckets") or []
-        pages = []
-        for pb in pages_b:
-            k = pb.get("key")
-            try:
-                if isinstance(k, (int, float)):
-                    pages.append(int(k))
-                elif isinstance(k, str) and k.isdigit():
-                    pages.append(int(k))
-            except Exception:
-                pass
-        pages = sorted(set(pages))
-        title_md = _md_link(doc_url, display) if doc_url else display
-        if pages:
-            page_links = ", ".join(_md_link(f"{doc_url}#page={p}", str(p)) for p in pages if doc_url)
-            lines.append(f"{i}. {title_md} (pages: {page_links or ', '.join(map(str, pages))})")
-        else:
-            lines.append(f"{i}. {title_md} (pages: unknown)")
-        src_obj: dict = {"url": doc_url or s3_uri, "label": display}
-        if pages:
-            src_obj["page"] = pages[0]
-        sources_list.append(src_obj)
-    details = "\n".join(lines) if lines else "No documents listed."
-    return summary, details, _dedupe_sources_best(sources_list)
-
-# ---------- WebSocket helpers ----------
-def _send_ws(connection_id: str, payload: dict):
-    if not ws:
-        logger.error("WebSocket client not configured (URL env missing).")
-        return
-    try:
-        ws.post_to_connection(ConnectionId=connection_id, Data=json.dumps(payload))
-    except ClientError as e:
-        logger.error(f"WebSocket post_to_connection error: {e}")
-
-def _end_with_error(connection_id: str, message: str, code: int = 500):
-    _send_ws(connection_id, {"type": "error", "statusCode": code, "text": message})
-    _send_ws(connection_id, {"type": "end", "statusCode": code})
-
 # ---------- Bedrock KB retrieval ----------
 def _kb_retrieve(prompt: str, kb_id: str, k: int = 10) -> tuple[str, list[dict]]:
     """Fetch top-k chunks + build presigned sources with labels; de-dup best."""
@@ -666,13 +430,13 @@ def _kb_retrieve(prompt: str, kb_id: str, k: int = 10) -> tuple[str, list[dict]]
         logger.error(f"KB retrieve unexpected error: {e}")
         return "", []
 
-# --- NEW: Pull short summaries per KB document for the sources list ---
-def _kb_pull_doc_summaries(prompt: str, k: int = 20) -> dict[str, str]:
+# ---------- Collect first-chunk snippets per doc (for reason generation) ----------
+def _collect_doc_snippets(prompt: str, k: int = 20) -> dict:
     """
-    Return {doc_key -> one_line_summary} for top-k retrieved docs.
-    Uses the first chunk per doc as the basis for the one-liner.
+    Returns {doc_key: {"snippet": str, "url": str, "label": str}}
+    Uses the first retrieved chunk per document.
     """
-    out: dict[str, str] = {}
+    out = {}
     kb_id = cfg.KNOWLEDGE_BASE_ID
     if not kb_id:
         return out
@@ -689,14 +453,115 @@ def _kb_pull_doc_summaries(prompt: str, k: int = 20) -> dict[str, str]:
             s3_uri = loc.get("uri") or ""
             if not s3_uri or not txt:
                 continue
-            key = _doc_key_from_url(s3_uri)
+            # presign
+            url = s3_uri
+            if s3_uri.startswith("s3://") and s3 and cfg.S3_BUCKET_NAME and s3_uri.startswith(f"s3://{cfg.S3_BUCKET_NAME}/"):
+                try:
+                    key = s3_uri.split(f"s3://{cfg.S3_BUCKET_NAME}/", 1)[1]
+                    url = s3.generate_presigned_url(
+                        "get_object",
+                        Params={"Bucket": cfg.S3_BUCKET_NAME, "Key": key, "ResponseContentDisposition": "inline"},
+                        ExpiresIn=3600,
+                    )
+                except Exception as e:
+                    logger.warning(f"Presign failed for {s3_uri}: {e}")
+            key = _basename_from_url(s3_uri).lower()
             if key in out:
-                continue  # keep first/strongest chunk's blurb
-            out[key] = _one_liner(txt)
+                continue
+            out[key] = {"snippet": txt, "url": url, "label": _clean_filename(s3_uri)}
         return out
     except Exception as e:
-        logger.warning(f"_kb_pull_doc_summaries error: {e}")
+        logger.warning(f"_collect_doc_snippets error: {e}")
         return out
+
+# ---------- Minimal helpers for model JSON completion ----------
+def _extract_text_from_converse(resp) -> str:
+    try:
+        parts = (resp.get("output") or {}).get("message", {}).get("content", [])
+        return "".join(p.get("text", "") for p in parts if isinstance(p, dict) and "text" in p)
+    except Exception:
+        return ""
+
+def _model_complete_text(messages, system=None) -> str:
+    # Try non-stream first
+    try:
+        kwargs = {"modelId": MODEL_ID, "messages": messages}
+        if system:
+            kwargs["system"] = [{"text": system}] if isinstance(system, str) else system
+        resp = brt.converse(**kwargs)
+        text = _extract_text_from_converse(resp)
+        if text:
+            return text
+    except Exception as e:
+        logger.warning(f"converse failed, falling back to stream: {e}")
+    # Fallback to stream
+    try:
+        resp = brt.converse_stream(modelId=MODEL_ID, messages=messages, system=([{"text": system}] if system else None))
+        stream = resp.get("stream")
+        acc = []
+        for ev in stream:
+            if "contentBlockDelta" in ev:
+                delta = (ev["contentBlockDelta"].get("delta") or {}).get("text")
+                if delta:
+                    acc.append(delta)
+            elif "messageStop" in ev:
+                break
+        return "".join(acc)
+    except Exception as e:
+        logger.error(f"converse_stream failed: {e}")
+        return ""
+
+def _safe_json_from_text(txt: str) -> dict:
+    """Extract first JSON object from text; return {} on failure."""
+    try:
+        # find first {...}
+        start = txt.find("{")
+        end = txt.rfind("}")
+        if start != -1 and end != -1 and end > start:
+            return json.loads(txt[start:end+1])
+    except Exception:
+        pass
+    return {}
+
+# ---------- Ask the model to write one-sentence 'why relevant' reasons ----------
+def _gen_relevance_reasons_via_model(user_prompt: str, doc_snips: dict) -> dict:
+    """
+    doc_snips: {doc_key: {"snippet": str, "url": str, "label": str}}
+    Returns {doc_key: reason_sentence}
+    """
+    if not doc_snips:
+        return {}
+    # Keep payload small — cap snippet length
+    docs_arr = []
+    for k, v in doc_snips.items():
+        snip = (v.get("snippet") or "").strip()
+        if not snip:
+            continue
+        if len(snip) > 900:
+            snip = snip[:900] + "…"
+        docs_arr.append({"key": k, "snippet": snip, "label": v.get("label") or k})
+    if not docs_arr:
+        return {}
+
+    system_text = (
+        "You write one-sentence reasons why each document is relevant to the user's question. "
+        "Base the reason ONLY on the provided snippet text; don't invent facts. "
+        "Be specific (e.g., 'covers Nigeria ART and PrEP guidance, 2020 national guideline'). "
+        "Return pure JSON mapping each 'key' to a single reason string. No extra commentary."
+    )
+    user_text = (
+        "User question:\n"
+        f"{user_prompt}\n\n"
+        "Docs:\n"
+        + json.dumps({"docs": docs_arr}, ensure_ascii=False)
+    )
+    messages = [{"role": "user", "content": [{"text": user_text}]}]
+    txt = _model_complete_text(messages, system=system_text)
+    obj = _safe_json_from_text(txt)
+    # Expect either flat {key: reason} or {"reasons": {key: reason}}
+    if "reasons" in obj and isinstance(obj["reasons"], dict):
+        return {k: (v or "").strip() for k, v in obj["reasons"].items()}
+    return {k: (v or "").strip() for k, v in obj.items() if isinstance(v, str)}
 
 # ---------- URL detection ----------
 _URL_RE = re.compile(r"https?://[^\s)>\]]+", re.IGNORECASE)
@@ -718,6 +583,16 @@ def _extract_first_url_from_history(history_raw) -> str | None:
     return None
 
 # ---------- Summarization (PDF) ----------
+def _basename_from_url(u: str) -> str:
+    try:
+        p = urllib.parse.urlparse(u)
+        name = (p.path or "").split("/")[-1]
+        name = urllib.parse.unquote(name or "")
+        name = name.split("?")[0].split("#")[0]
+        return name
+    except Exception:
+        return u or ""
+
 def _kb_retrieve_for_doc(prompt: str, doc_url_hint: str, k: int = 20) -> tuple[str, list[dict]]:
     all_text, all_sources = _kb_retrieve(prompt, cfg.KNOWLEDGE_BASE_ID, k)
     if not (all_text or all_sources):
@@ -790,7 +665,29 @@ def _stream_summary_from_chunks(connection_id: str, prompt: str, doc_url: str, h
         _send_ws(connection_id, {"type": "sources", "statusCode": 200, "sources": kb_sources})
     _send_ws(connection_id, {"type": "end", "statusCode": 200})
 
+# ---------- WebSocket helpers ----------
+def _send_ws(connection_id: str, payload: dict):
+    if not ws:
+        logger.error("WebSocket client not configured (URL env missing).")
+        return
+    try:
+        ws.post_to_connection(ConnectionId=connection_id, Data=json.dumps(payload))
+    except ClientError as e:
+        logger.error(f"WebSocket post_to_connection error: {e}")
+
+def _end_with_error(connection_id: str, message: str, code: int = 500):
+    _send_ws(connection_id, {"type": "error", "statusCode": code, "text": message})
+    _send_ws(connection_id, {"type": "end", "statusCode": code})
+
 # ---------- Model talk (with history context) ----------
+_HIV_TOKENS = {
+    "hiv", "aids", "prep", "pre-exposure", "prophylaxis", "incidence", "prevalence", "who", "unaids",
+    "scorecards", "gpc", "statcompiler", "dhis2", "phia", "agyw", "key", "populations", "psat", "shipp"
+}
+def _should_use_kb(prompt: str) -> bool:
+    toks = set(re.findall(r"[a-z0-9\-]+", _norm(prompt)))
+    return any(t in toks for t in _HIV_TOKENS)
+
 def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: list[dict] | None = None):
     use_kb = _should_use_kb(prompt)
 
@@ -909,7 +806,7 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
     except Exception as e:
         logger.warning(f"Inline suggested reference append error: {e}")
 
-    # -------------------- Sources block (with inline summaries) --------------------
+    # -------------------- Sources block (with model-generated reasons first) --------------------
     sources_to_send = []
     if use_kb and kb_sources:
         sources_to_send.extend(kb_sources)
@@ -919,37 +816,42 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
     sources_to_send = _dedupe_sources_best(sources_to_send)
 
     if sources_to_send:
-        # Pull one-liners for top KB docs and enrich labels where applicable
-        doc_summaries = _kb_pull_doc_summaries(prompt, k=20) if use_kb else {}
+        # Build a doc->snippet map, but only for docs we will actually show
+        doc_snips_all = _collect_doc_snippets(prompt, k=20) if use_kb else {}
+        want_keys = set()
+        for s in sources_to_send:
+            url = (s.get("url") or "").strip()
+            if url:
+                want_keys.add(_basename_from_url(url).lower())
+        doc_snips = {k: v for k, v in doc_snips_all.items() if k in want_keys}
+
+        # Ask the model for one-sentence reasons (double-request approach)
+        reasons = _gen_relevance_reasons_via_model(prompt, doc_snips) if doc_snips else {}
+
         enriched = []
         inline_lines = []
-
         for s in (sources_to_send or []):
             url = (s.get("url") or "").strip()
             base_label = (s.get("label") or _title_for_url(url) or "Source").strip()
+            key = _basename_from_url(url).lower() if url else base_label.lower()
+            reason = (reasons.get(key) or "").strip()
 
-            looks_like_kb_doc = ("score" in s) or base_label.lower().endswith(".pdf") or url.lower().endswith(".pdf")
-            blurb = ""
-            if looks_like_kb_doc and url:
-                key = _doc_key_from_url(url)
-                blurb = (doc_summaries.get(key) or "").strip()
+            # 1) Enrich label with the REASON (not a content blurb)
+            label = f"{base_label} – {reason}" if reason else base_label
 
-            # 1) Enrich label (for UIs that only render label)
-            label = f"{base_label} – {blurb}" if blurb else base_label
-
-            # 2) Also include a dedicated 'summary' field (in case the UI supports it)
+            # 2) Include a dedicated 'summary' field = reason (UI may show this)
             s2 = dict(s)
             s2["label"] = label
-            if blurb:
-                s2["summary"] = blurb  # harmless if UI ignores it
+            if reason:
+                s2["summary"] = reason
             enriched.append(s2)
 
-            # 3) Stream a compact inline list so the words always show in chat
+            # 3) Inline list with **reason first, then the source link**
             if url:
-                if blurb:
-                    inline_lines.append(f"- {_md_link(url, base_label)} – {blurb}")
+                if reason:
+                    inline_lines.append(f"- {reason} — {_md_link(url, base_label)}")
                 else:
-                    inline_lines.append(f"- {_md_link(url, base_label)}")
+                    inline_lines.append(f"- relevant to the question — {_md_link(url, base_label)}")
 
         # Send the inline bullet list first (appears under the assistant’s message)
         if inline_lines:
@@ -964,6 +866,66 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
         _send_ws(connection_id, {"type": "sources", "statusCode": 200, "sources": enriched})
 
     _send_ws(connection_id, {"type": "end", "statusCode": 200})
+
+# ---------- Runtime teaching context ----------
+def _runtime_relevant_resources(prompt: str, top_n: int = 4) -> list[dict]:
+    resources = (_RUNTIME_KB or {}).get("resources", [])
+    if not resources:
+        return []
+    q_tokens = set(re.findall(r"[a-z0-9\-]+", _norm(prompt)))
+    scored = []
+    for r in resources:
+        text = " ".join([
+            r.get("name", ""),
+            r.get("summary", ""),
+            " ".join(r.get("when_to_use", []) or []),
+            " ".join(r.get("match_terms", []) or []),
+            r.get("category", "")
+        ]).lower()
+        r_tokens = set(re.findall(r"[a-z0-9\-]+", text))
+        overlap = len(q_tokens.intersection(r_tokens))
+        if "agyw" in q_tokens and "agyw" in r_tokens:
+            overlap += 2
+        if "district" in q_tokens or "subnational" in q_tokens:
+            if "sub" in r_tokens or "district" in r_tokens:
+                overlap += 1
+        if "prep" in q_tokens and "prep" in r_tokens:
+            overlap += 2
+        if "testing" in q_tokens and "statcompiler" in r.get("name","").lower():
+            overlap += 1
+        if overlap > 0:
+            scored.append((overlap, r))
+    scored.sort(key=lambda x: x[0], reverse=True)
+    return [r for _, r in scored[:max(1, top_n)]]
+
+def _build_runtime_context(prompt: str) -> str:
+    try:
+        rules = "\n".join((_RUNTIME_KB or {}).get("style", {}).get("answer_rules", [])[:3])
+        picks = _runtime_relevant_resources(prompt, top_n=4)
+        lines = []
+        for r in picks:
+            name = r.get("name", "Resource")
+            url = r.get("url", "")
+            summary = r.get("summary", "")
+            use = "; ".join(r.get("when_to_use", [])[:2]) if r.get("when_to_use") else ""
+            caveat = "; ".join(r.get("caveats", [])[:1]) if r.get("caveats") else ""
+            bits = [summary]
+            if use:
+                bits.append(f"When to use: {use}")
+            if caveat:
+                bits.append(f"Caveat: {caveat}")
+            joined = " ".join([b for b in bits if b]).strip()
+            if url:
+                lines.append(f"- {name} — {joined} (URL: {url})")
+            else:
+                lines.append(f"- {name} — {joined}")
+        rules_block = f"<answer_rules>\n{rules}\n</answer_rules>\n" if rules else ""
+        picks_block = "\n".join(lines) if lines else ""
+        if not (rules_block or picks_block):
+            return ""
+        return f"{rules_block}<runtime_resource_map>\n{picks_block}\n</runtime_resource_map>"
+    except Exception:
+        return ""
 
 # ---------- Handler ----------
 def lambda_handler(event, _context):
