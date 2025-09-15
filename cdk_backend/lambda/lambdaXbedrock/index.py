@@ -863,7 +863,12 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
             })
 
         # Send the structured sources payload (clickable items with scores/pages as before)
-        _send_ws(connection_id, {"type": "sources", "statusCode": 200, "sources": enriched})
+        cleaned = []
+        for s in enriched:
+            s2 = dict(s)
+            s2.pop("score", None)
+            cleaned.append(s2)
+        _send_ws(connection_id, {"type": "sources", "statusCode": 200, "sources": cleaned})
 
     _send_ws(connection_id, {"type": "end", "statusCode": 200})
 

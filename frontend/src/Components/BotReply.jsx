@@ -88,7 +88,7 @@ function BotReply({ message, sources, name = 'Tobi' }) {
                       maxWidth: '100%',
                     }}
                   >
-                    {getFileNameFromUrl(source.url)} (Score: {source.score?.toFixed(2) ?? 'N/A'})
+                    {/* {getFileNameFromUrl(source.url)} (Score: {source.score?.toFixed(2) ?? 'N/A'}) */}
                   </Link>
                 </ListItem>
               ))}
