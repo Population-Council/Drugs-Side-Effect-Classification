@@ -40,7 +40,7 @@ function BotReply({ message, name = 'Tobi' }) {
             borderRadius: 2.5,
             p: 1.5,
             maxWidth: { xs: '100%', sm: '80%' },
-            wordWrap: 'break-word'
+            wordWrap: 'break-word',
           }}
         >
           {/* Row 1: avatar + bold name */}
@@ -74,20 +74,20 @@ function BotReply({ message, name = 'Tobi' }) {
           </Box>
         </Box>
 
-        {/* Actions row (outside the bubble, under it) */}
-        <Box sx={{ mt: 0.5, display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
+        {/* Actions row (outside the bubble, under it, LEFT-aligned) */}
+        <Box sx={{ mt: 0.5, display: 'flex', justifyContent: 'flex-start', gap: 0.5 }}>
           <Tooltip title={copied ? 'Copied' : 'Copy'}>
-            <IconButton size="small" onClick={handleCopy}>
+            <IconButton size="small" onClick={handleCopy} aria-label="Copy message">
               {copied ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
             </IconButton>
           </Tooltip>
           <Tooltip title="Thumbs up">
-            <IconButton size="small" onClick={handleUp}>
+            <IconButton size="small" onClick={handleUp} aria-label="Thumbs up">
               <ThumbUpOffAltIcon fontSize="small" />
             </IconButton>
           </Tooltip>
           <Tooltip title="Thumbs down">
-            <IconButton size="small" onClick={handleDown}>
+            <IconButton size="small" onClick={handleDown} aria-label="Thumbs down">
               <ThumbDownOffAltIcon fontSize="small" />
             </IconButton>
           </Tooltip>
