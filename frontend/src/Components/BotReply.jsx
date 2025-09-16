@@ -1,13 +1,39 @@
-import React from 'react';
-import { Grid, Box, Avatar, Typography } from '@mui/material';
+// src/Components/BotReply.jsx
+import React, { useState } from 'react';
+import { Grid, Box, Avatar, Typography, IconButton, Tooltip } from '@mui/material';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
+import CheckIcon from '@mui/icons-material/Check';
+import ThumbUpOffAltIcon from '@mui/icons-material/ThumbUpOffAlt';
+import ThumbDownOffAltIcon from '@mui/icons-material/ThumbDownOffAlt';
 import BotAvatar from '../Assets/BotAvatar.svg';
 import ReactMarkdown from 'react-markdown';
 import { ALLOW_MARKDOWN_BOT, BOTMESSAGE_TEXT_COLOR } from '../utilities/constants';
 
 function BotReply({ message, name = 'Tobi' }) {
+  const [copied, setCopied] = useState(false);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(message || '');
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (e) {
+      console.error('Copy failed:', e);
+    }
+  };
+
+  const handleUp = () => {
+    console.log('Thumbs up clicked');
+  };
+
+  const handleDown = () => {
+    console.log('Thumbs down clicked');
+  };
+
   return (
     <Grid container direction="row" justifyContent="flex-start" alignItems="flex-start">
       <Grid item xs="auto" sx={{ maxWidth: '100%' }}>
+        {/* Bubble */}
         <Box
           sx={{
             backgroundColor: (theme) => theme.palette.background.botMessage,
@@ -46,7 +72,25 @@ function BotReply({ message, name = 'Tobi' }) {
               </Typography>
             )}
           </Box>
-          {/* IMPORTANT: No sources list rendered at all. Inline bullets come from backend markdown. */}
+        </Box>
+
+        {/* Actions row (outside the bubble, under it) */}
+        <Box sx={{ mt: 0.5, display: 'flex', justifyContent: 'flex-end', gap: 0.5 }}>
+          <Tooltip title={copied ? 'Copied' : 'Copy'}>
+            <IconButton size="small" onClick={handleCopy}>
+              {copied ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Thumbs up">
+            <IconButton size="small" onClick={handleUp}>
+              <ThumbUpOffAltIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <Tooltip title="Thumbs down">
+            <IconButton size="small" onClick={handleDown}>
+              <ThumbDownOffAltIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         </Box>
       </Grid>
     </Grid>
