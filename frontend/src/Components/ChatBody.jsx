@@ -49,29 +49,41 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
 
   const greetedRef = useRef(false);
 
+  // Open ONE WebSocket connection on mount (don’t tie to `processing`)
   useEffect(() => {
     if (!WEBSOCKET_API) {
-      console.error("WebSocket API URL is not defined.");
+      console.error("WebSocket API URL is not defined. Set REACT_APP_WEBSOCKET_API in a .env file.");
       return;
     }
+    console.log("Opening WebSocket to:", WEBSOCKET_API);
     websocket.current = new WebSocket(WEBSOCKET_API);
-    websocket.current.onopen = () => setIsWsConnected(true);
+
+    websocket.current.onopen = () => {
+      console.log("WebSocket Connected");
+      setIsWsConnected(true);
+    };
+
     websocket.current.onclose = (event) => {
+      console.log(`WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
       setIsWsConnected(false);
       if (processing) setProcessing(false);
     };
+
     websocket.current.onerror = (error) => {
       console.error("WebSocket Error:", error);
       setIsWsConnected(false);
       if (processing) setProcessing(false);
     };
+
     return () => {
       if (websocket.current && websocket.current.readyState === WebSocket.OPEN) {
+        console.log("Closing WebSocket on unmount");
         websocket.current.close();
       }
     };
-  }, [setProcessing, processing]);
+  }, []); // <-- important: only once
 
+  // Initial greeting (only once, only if no history)
   useEffect(() => {
     if (!greetedRef.current && (!messageList || messageList.length === 0)) {
       const timestamp = new Date().toISOString();
@@ -82,7 +94,7 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
         'SENT',
         '',
         '',
-        [], // no sources
+        [],
         timestamp
       );
       addMessage(botMessageBlock);
@@ -90,6 +102,7 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
     }
   }, [messageList, addMessage]);
 
+  // Always scroll to newest message
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -104,6 +117,7 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
       const newMessageBlock = createMessageBlock(trimmedMessage, 'USER', 'TEXT', 'SENT', "", "", [], timestamp);
       addMessage(newMessageBlock);
       setQuestionAsked(true);
+
       const historyToSend = ALLOW_CHAT_HISTORY ? messageList.slice(-20) : [];
       const messagePayload = {
         action: 'sendMessage',
@@ -111,12 +125,14 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
         role: selectedRole,
         history: historyToSend
       };
+      console.log("Sending payload:", messagePayload);
       websocket.current.send(JSON.stringify(messagePayload));
     } else if (!trimmedMessage) {
       console.warn("Attempted to send an empty message.");
     } else if (processing) {
       console.warn("Processing another request.");
     } else if (!websocket.current || websocket.current.readyState !== WebSocket.OPEN) {
+      console.error("WebSocket not connected. Cannot send.");
       setIsWsConnected(false);
       setProcessing(false);
       addMessage(createMessageBlock("Connection error. Please refresh the page and try again.", "BOT", "TEXT", "SENT", "", "", [], new Date().toISOString()));
@@ -166,7 +182,7 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
         "SENT",
         "",
         "",
-        [], // IMPORTANT: never attach sources; inline markdown already has the bullets
+        [], // never attach sources; backend sends inline bullets
         new Date().toISOString()
       );
       addMessage(botMessageBlock);
