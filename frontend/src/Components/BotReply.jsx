@@ -1,36 +1,10 @@
-import React, { useState } from 'react';
-import { Grid, Box, Avatar, Typography, IconButton, Tooltip } from '@mui/material';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import CheckIcon from '@mui/icons-material/Check';
-import ThumbUpOffAltIcon from '@mui/icons-material/ThumbUpOffAlt';
-import ThumbDownOffAltIcon from '@mui/icons-material/ThumbDownOffAlt';
+import React from 'react';
+import { Grid, Box, Avatar, Typography } from '@mui/material';
 import BotAvatar from '../Assets/BotAvatar.svg';
 import ReactMarkdown from 'react-markdown';
 import { ALLOW_MARKDOWN_BOT, BOTMESSAGE_TEXT_COLOR } from '../utilities/constants';
 
-function BotReply({ message, name = 'Tobi', isLast = false }) {
-  const [copySuccess, setCopySuccess] = useState(false);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(message || '');
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 2000);
-    } catch (e) {
-      console.error('Copy failed:', e);
-    }
-  };
-
-  const handleThumbUp = () => {
-    // Clickable only for now
-    console.log('Thumbs up clicked');
-  };
-
-  const handleThumbDown = () => {
-    // Clickable only for now
-    console.log('Thumbs down clicked');
-  };
-
+function BotReply({ message, name = 'Tobi' }) {
   return (
     <Grid container direction="row" justifyContent="flex-start" alignItems="flex-start">
       <Grid item xs="auto" sx={{ maxWidth: '100%' }}>
@@ -72,35 +46,7 @@ function BotReply({ message, name = 'Tobi', isLast = false }) {
               </Typography>
             )}
           </Box>
-
-          {/* Actions bar (only on the last bot bubble) */}
-          {isLast && (
-            <Box
-              sx={{
-                mt: 1,
-                display: 'flex',
-                justifyContent: 'flex-end',
-                alignItems: 'center',
-                gap: 0.5
-              }}
-            >
-              <Tooltip title={copySuccess ? 'Copied' : 'Copy'}>
-                <IconButton size="small" onClick={handleCopy}>
-                  {copySuccess ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Thumbs up">
-                <IconButton size="small" onClick={handleThumbUp}>
-                  <ThumbUpOffAltIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-              <Tooltip title="Thumbs down">
-                <IconButton size="small" onClick={handleThumbDown}>
-                  <ThumbDownOffAltIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            </Box>
-          )}
+          {/* IMPORTANT: No sources list rendered at all. Inline bullets come from backend markdown. */}
         </Box>
       </Grid>
     </Grid>
