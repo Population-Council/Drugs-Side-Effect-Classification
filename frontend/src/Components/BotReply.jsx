@@ -46,7 +46,7 @@ function BotReply({ message, name = 'Tobi' }) {
               </Typography>
             )}
           </Box>
-          {/* IMPORTANT: No sources list rendered at all. Inline bullets come from backend markdown. */}
+          {/* No actions here — actions are rendered OUTSIDE the bubble in ChatBody */}
         </Box>
       </Grid>
     </Grid>
