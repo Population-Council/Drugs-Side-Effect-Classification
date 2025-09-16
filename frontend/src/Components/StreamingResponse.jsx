@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { Grid, Avatar, Typography, IconButton, Tooltip, Box } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CheckIcon from "@mui/icons-material/Check";
+import ThumbUpOffAltIcon from '@mui/icons-material/ThumbUpOffAlt';
+import ThumbDownOffAltIcon from '@mui/icons-material/ThumbDownOffAlt';
 import BotAvatar from "../Assets/BotAvatar.svg";
 import LoadingAnimation from "../Assets/loading_animation.gif";
 import { ALLOW_MARKDOWN_BOT, BOTMESSAGE_TEXT_COLOR } from "../utilities/constants";
@@ -40,7 +42,7 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
           accumulatedText += jsonData.text;
           setCurrentStreamText(accumulatedText);
         } else if (jsonData.type === "sources") {
-          // We ignore structured sources completely now.
+          // Ignored by design
         } else if (jsonData.type === "end" || jsonData.type === "error") {
           const isError = jsonData.type === "error";
           const errorMsg = isError ? jsonData.text : null;
@@ -77,18 +79,45 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
 
   const handleCopyToClipboard = () => {
     if (!currentStreamText) return;
-    navigator.clipboard.writeText(currentStreamText).then(() => {
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 3000);
-    }).catch((err) => console.error("Copy failed", err));
+    navigator.clipboard.writeText(currentStreamText)
+      .then(() => {
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 2000);
+      })
+      .catch((err) => console.error("Copy failed", err));
+  };
+
+  const handleThumbUp = () => {
+    console.log('Thumbs up (stream) clicked');
+  };
+
+  const handleThumbDown = () => {
+    console.log('Thumbs down (stream) clicked');
   };
 
   if (showLoading) {
     return (
       <Box sx={{ width: '100%' }}>
         <Grid container direction="row" justifyContent="flex-start" alignItems="flex-start" spacing={1} wrap="nowrap">
-          <Grid item><Avatar alt="Bot Avatar" src={BotAvatar} sx={{ width: 40, height: 40, mt: 1 }} /></Grid>
-          <Grid item className="botMessage" xs sx={{ backgroundColor: (theme) => theme.palette.background.botMessage, position: "relative", padding: '10px 15px', borderRadius: '20px', mt: 1, minWidth: '50px', maxWidth: 'calc(100% - 50px)', wordWrap: 'break-word', minHeight: '40px' }}>
+          <Grid item>
+            <Avatar alt="Bot Avatar" src={BotAvatar} sx={{ width: 40, height: 40, mt: 1 }} />
+          </Grid>
+          <Grid
+            item
+            className="botMessage"
+            xs
+            sx={{
+              backgroundColor: (theme) => theme.palette.background.botMessage,
+              position: "relative",
+              p: '10px 15px',
+              borderRadius: '20px',
+              mt: 1,
+              minWidth: '50px',
+              maxWidth: 'calc(100% - 50px)',
+              wordWrap: 'break-word',
+              minHeight: '40px'
+            }}
+          >
             <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', minHeight: 'inherit' }}>
               <img src={LoadingAnimation} alt="Loading..." style={{ width: '40px', height: '40px' }} />
             </Box>
@@ -102,16 +131,27 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
 
   return (
     <Box sx={{ width: '100%' }}>
+      {/* Bubble */}
       <Grid container direction="row" justifyContent="flex-start" alignItems="flex-start" spacing={1} wrap="nowrap">
-        <Grid item><Avatar alt="Bot Avatar" src={BotAvatar} sx={{ width: 40, height: 40, mt: 1 }} /></Grid>
-        <Grid item className="botMessage" xs sx={{ backgroundColor: (theme) => theme.palette.background.botMessage, position: "relative", padding: '10px 15px', paddingRight: '40px', borderRadius: '20px', mt: 1, minWidth: '50px', maxWidth: 'calc(100% - 50px)', wordWrap: 'break-word', minHeight: '40px' }}>
-          {currentStreamText && (
-            <Tooltip title={copySuccess ? "Copied" : "Copy current text"}>
-              <IconButton size="small" onClick={handleCopyToClipboard} sx={{ position: "absolute", top: 5, right: 5, zIndex: 1, color: 'grey.600' }}>
-                {copySuccess ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
-              </IconButton>
-            </Tooltip>
-          )}
+        <Grid item>
+          <Avatar alt="Bot Avatar" src={BotAvatar} sx={{ width: 40, height: 40, mt: 1 }} />
+        </Grid>
+        <Grid
+          item
+          className="botMessage"
+          xs
+          sx={{
+            backgroundColor: (theme) => theme.palette.background.botMessage,
+            position: "relative",
+            p: '10px 15px',
+            borderRadius: '20px',
+            mt: 1,
+            minWidth: '50px',
+            maxWidth: 'calc(100% - 50px)',
+            wordWrap: 'break-word',
+            minHeight: '40px'
+          }}
+        >
           {ALLOW_MARKDOWN_BOT ? (
             <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR} sx={{ '& > p': { margin: 0 } }}>
               <ReactMarkdown>{currentStreamText || "\u00A0"}</ReactMarkdown>
@@ -123,6 +163,25 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
           )}
         </Grid>
       </Grid>
+
+      {/* Actions row OUTSIDE the bubble */}
+      <Box sx={{ mt: 0.5, display: 'flex', justifyContent: 'flex-end', gap: 0.5, pr: { xs: 0, sm: '20%' } }}>
+        <Tooltip title={copySuccess ? 'Copied' : 'Copy'}>
+          <IconButton size="small" onClick={handleCopyToClipboard}>
+            {copySuccess ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Thumbs up">
+          <IconButton size="small" onClick={handleThumbUp}>
+            <ThumbUpOffAltIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+        <Tooltip title="Thumbs down">
+          <IconButton size="small" onClick={handleThumbDown}>
+            <ThumbDownOffAltIcon fontSize="small" />
+          </IconButton>
+        </Tooltip>
+      </Box>
     </Box>
   );
 };
