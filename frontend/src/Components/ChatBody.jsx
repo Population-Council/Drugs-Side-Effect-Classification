@@ -16,7 +16,15 @@ import BotReply from './BotReply';
 import { useRole } from '../contexts/RoleContext';
 
 // Updated greeting: "Tobi" only, and removed the “ready to answer…” line
-const TOBI_GREETING_MD = `**Tobi**`;
+const TOBI_GREETING_MD = `**Hi — I’m Tobi.** I’m your virtual assistant for **SSLN & I2I**.
+
+I can help you:
+- Answer questions about programs, policies, and data
+- Surface the right resources (with links)
+- Compare two programs (with links)
+- Summarize PDFs 
+
+Ask me anything to get started. Type **/help** for tips.`;
 
 function UserReply({ message }) {
   return (
