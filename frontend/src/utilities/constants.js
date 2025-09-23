@@ -7,19 +7,17 @@ export const primary_50 = "#3366ff"; // The 50 variant of the primary color
 export const SECONDARY_MAIN = "#01665cff"; // The main secondary color used for less prominent elements
 
 // Chat component background colors
-export const CHAT_BODY_BACKGROUND = "#FFFFFF"; // 003300 Background color for the chat body area
+export const CHAT_BODY_BACKGROUND = "#FFFFFF"; // Background color for the chat body area
 export const CHAT_LEFT_PANEL_BACKGROUND = "#003A5D"; // Background color for the left panel in the chat
 export const ABOUT_US_HEADER_BACKGROUND = "#FFFFFF"; // Background color for the About Us section in the left panel
 export const FAQ_HEADER_BACKGROUND = "#FFFFFF"; // Background color for the FAQ section in the left panel
 export const ABOUT_US_TEXT = "#FFFFFF"; // Text color for the About Us section in the left panel
 export const FAQ_TEXT = "#FFFFFF"; // Text color for the FAQ section in the left panel
-export const HEADER_BACKGROUND = "#F6F6F6"; // Background color for the header
-export const HEADER_TEXT_GRADIENT = "linear-gradient(90deg, #003A5D, #6BC049)"; // Text gradient color for the header
-//D3D3D3
-// 6BC049
-//003A5D
+export const HEADER_BACKGROUND = "#F6F6F6"; // (kept for other uses if needed)
+export const HEADER_TEXT_GRADIENT = "linear-gradient(90deg, #003A5D, #6BC049)"; // (unused in new header text)
+
 // Message background colors
-export const BOTMESSAGE_BACKGROUND = "#F5F5F5"; // Background color for messages sent by the bot
+export const BOTMESSAGE_BACKGROUND = "#F5F5F5"; // (no longer used for bot bubble)
 export const BOTMESSAGE_TEXT_COLOR = "#000000"; // Text color for messages sent by the bot
 export const USERMESSAGE_BACKGROUND = "#01665cff"; // Background color for messages sent by the user
 export const USERMESSAGE_TEXT_COLOR = "#FFFFFF"; // Text color for messages sent by the user
@@ -43,12 +41,12 @@ export const TEXT = {
       "How can I partner with the Population Council?",
       "What career opportunities or fellowships are available?"
     ],
-    CHAT_HEADER_TITLE: "Tobi",
+    CHAT_HEADER_TITLE: "Tobi",      // Header shows just "Tobi"
     CHAT_INPUT_PLACEHOLDER: "Type a question...",
     HELPER_TEXT: "Cannot send empty message",
     SPEECH_RECOGNITION_START: "Start Listening",
     SPEECH_RECOGNITION_STOP: "Stop Listening",
-    SPEECH_RECOGNITION_HELPER_TEXT: "Stop speaking to send the message" // New helper text
+    SPEECH_RECOGNITION_HELPER_TEXT: "Stop speaking to send the message"
   },
   ES: {
     APP_NAME: "Aplicación de Plantilla de Chatbot",
@@ -69,7 +67,7 @@ export const TEXT = {
     HELPER_TEXT: "No se puede enviar un mensaje vacío",
     SPEECH_RECOGNITION_START: "Comenzar a Escuchar",
     SPEECH_RECOGNITION_STOP: "Dejar de Escuchar",
-    SPEECH_RECOGNITION_HELPER_TEXT: "Deja de hablar para enviar el mensaje" // New helper text
+    SPEECH_RECOGNITION_HELPER_TEXT: "Deja de hablar para enviar el mensaje"
   }
 };
 
@@ -100,40 +98,30 @@ export const LANDING_PAGE_TEXT = {
   }
 };
 
-
-// --------------------------------------------------------------------------------------------------------//
-// --------------------------------------------------------------------------------------------------------//
-
 // API endpoints
+export const CHAT_API = process.env.REACT_APP_CHAT_API;
+export const WEBSOCKET_API = process.env.REACT_APP_WEBSOCKET_API;
+export const AVATAR_BOT_WEBSITE_LINK = process.env.REACT_APP_AVATAR_BOT_WEBSITE_LINK;
 
-export const CHAT_API = process.env.REACT_APP_CHAT_API; // URL for the chat API endpoint
-export const WEBSOCKET_API = process.env.REACT_APP_WEBSOCKET_API; // URL for the WebSocket API endpoint
-export const AVATAR_BOT_WEBSITE_LINK = process.env.REACT_APP_AVATAR_BOT_WEBSITE_LINK; // URL for the avatar bot
-// --------------------------------------------------------------------------------------------------------//
-// --------------------------------------------------------------------------------------------------------//
-export const MAX_TEXT_LENGTH_PDF = 5000; // Number of words to check for PDF size (150000 - 200000 is good enough for 200k token limit of claude)
+// Limits & features
+export const MAX_TEXT_LENGTH_PDF = 5000;
 
-// Features
-export const ALLOW_FILE_UPLOAD = false; // Set to true to enable file upload feature
-export const ALLOW_VOICE_RECOGNITION = false; // Set to true to enable voice recognition feature
-export const ALLOW_MULTLINGUAL_TOGGLE = false; // Set to true to enable multilingual support
+export const ALLOW_FILE_UPLOAD = false;
+export const ALLOW_VOICE_RECOGNITION = false;
+export const ALLOW_MULTLINGUAL_TOGGLE = false;
 
-export const ALLOW_MARKDOWN_BOT = true; // Set to true to enable markdown support for bot messages
+export const ALLOW_MARKDOWN_BOT = true;
 
-export const ALLOW_LANDING_PAGE = false; // Set to true to enable the landing page
-export const ALLOW_AVATAR_BOT = false; // Set to true to enable the avatar for the bot
-export const ALLOW_PDF_PREVIEW = true; // Set to true to enable PDF preview
-export const ALLOW_VIDEO_PREVIEW = false; // Set to true to enable video preview
-export const ALLOW_CHAT_HISTORY = true; // Set to true to enable chat history and make sure to get the history from websocket with the ["history"] key
-export const DISPLAY_SOURCES_BEDROCK_KB = true; // Set to true to display sources from Bedrock KB
-export const DISPLAY_SEARCH_HISTORY = true; // Set to true to display search history
+export const ALLOW_LANDING_PAGE = false;
+export const ALLOW_AVATAR_BOT = false;
+export const ALLOW_PDF_PREVIEW = true;
+export const ALLOW_VIDEO_PREVIEW = false;
+export const ALLOW_CHAT_HISTORY = true;
+export const DISPLAY_SOURCES_BEDROCK_KB = true;
+export const DISPLAY_SEARCH_HISTORY = true;
 
-// --------------------------------------------------------------------------------------------------------//
-// Styling under work, would reccomend keeping it false for now
-export const ALLOW_FAQ = false; // Set to true to enable the FAQs to be visible in Chat body 
+// Styling under work, would recommend keeping it false for now
+export const ALLOW_FAQ = false;
 
-
-// VERY IMPORTANT
-// (If there is any)REMOVE THE POST PROCESSING IN SPEECH RECOGNITION TO DETECT CALVIN AS KELYVIN IN SPEECH RECOGNITION COMPONENT
-// ALSO update the title in the index.html file in the public folder
-// Change the public favicon.ico to the new favicon.ico that you would like to use
+// NEW: easy-to-edit spacing between header and first message (in px)
+export const CHAT_TOP_SPACING = 24;

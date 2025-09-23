@@ -40,7 +40,7 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
           accumulatedText += jsonData.text;
           setCurrentStreamText(accumulatedText);
         } else if (jsonData.type === "sources") {
-          // We ignore structured sources completely now.
+          // ignore structured sources
         } else if (jsonData.type === "end" || jsonData.type === "error") {
           const isError = jsonData.type === "error";
           const errorMsg = isError ? jsonData.text : null;
@@ -87,9 +87,12 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
     return (
       <Box sx={{ width: '100%' }}>
         <Grid container direction="row" justifyContent="flex-start" alignItems="flex-start" spacing={1} wrap="nowrap">
-          <Grid item><Avatar alt="Bot Avatar" src={BotAvatar} sx={{ width: 40, height: 40, mt: 1 }} /></Grid>
-          <Grid item className="botMessage" xs sx={{ backgroundColor: (theme) => theme.palette.background.botMessage, position: "relative", padding: '10px 15px', borderRadius: '20px', mt: 1, minWidth: '50px', maxWidth: 'calc(100% - 50px)', wordWrap: 'break-word', minHeight: '40px' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100%', minHeight: 'inherit' }}>
+          <Grid item>
+            <Avatar alt="Bot Avatar" src={BotAvatar} sx={{ width: 40, height: 40, mt: 1 }} />
+          </Grid>
+          {/* NO bubble background while loading */}
+          <Grid item xs sx={{ position: "relative", mt: 1, minWidth: '50px', maxWidth: 'calc(100% - 50px)', wordWrap: 'break-word', minHeight: '40px' }}>
+            <Box sx={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', height: '100%', minHeight: 'inherit' }}>
               <img src={LoadingAnimation} alt="Loading..." style={{ width: '40px', height: '40px' }} />
             </Box>
           </Grid>
@@ -103,11 +106,14 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
   return (
     <Box sx={{ width: '100%' }}>
       <Grid container direction="row" justifyContent="flex-start" alignItems="flex-start" spacing={1} wrap="nowrap">
-        <Grid item><Avatar alt="Bot Avatar" src={BotAvatar} sx={{ width: 40, height: 40, mt: 1 }} /></Grid>
-        <Grid item className="botMessage" xs sx={{ backgroundColor: (theme) => theme.palette.background.botMessage, position: "relative", padding: '10px 15px', paddingRight: '40px', borderRadius: '20px', mt: 1, minWidth: '50px', maxWidth: 'calc(100% - 50px)', wordWrap: 'break-word', minHeight: '40px' }}>
+        <Grid item>
+          <Avatar alt="Bot Avatar" src={BotAvatar} sx={{ width: 40, height: 40, mt: 1 }} />
+        </Grid>
+        {/* NO bubble: plain text area for bot stream */}
+        <Grid item xs sx={{ position: "relative", mt: 1, minWidth: '50px', maxWidth: 'calc(100% - 50px)', wordWrap: 'break-word', minHeight: '40px' }}>
           {currentStreamText && (
             <Tooltip title={copySuccess ? "Copied" : "Copy current text"}>
-              <IconButton size="small" onClick={handleCopyToClipboard} sx={{ position: "absolute", top: 5, right: 5, zIndex: 1, color: 'grey.600' }}>
+              <IconButton size="small" onClick={handleCopyToClipboard} sx={{ position: "absolute", top: 5, right: 5, zIndex: 1 }}>
                 {copySuccess ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
               </IconButton>
             </Tooltip>
