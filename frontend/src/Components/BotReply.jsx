@@ -33,16 +33,8 @@ function BotReply({ message, name = 'Tobi' }) {
   return (
     <Grid container direction="row" justifyContent="flex-start" alignItems="flex-start">
       <Grid item xs="auto" sx={{ maxWidth: '100%' }}>
-        {/* Bubble */}
-        <Box
-          sx={{
-            backgroundColor: (theme) => theme.palette.background.botMessage,
-            borderRadius: 2.5,
-            p: 1.5,
-            maxWidth: { xs: '100%', sm: '80%' },
-            wordWrap: 'break-word',
-          }}
-        >
+        {/* NO bubble: removed background + border for bot messages */}
+        <Box sx={{ p: 0, maxWidth: { xs: '100%', sm: '80%' }, wordWrap: 'break-word' }}>
           {/* Row 1: avatar + bold name */}
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Avatar
@@ -74,7 +66,7 @@ function BotReply({ message, name = 'Tobi' }) {
           </Box>
         </Box>
 
-        {/* Actions row (outside the bubble, under it, LEFT-aligned) */}
+        {/* Actions row (outside, under text, left-aligned) */}
         <Box sx={{ mt: 0.5, display: 'flex', justifyContent: 'flex-start', gap: 0.5 }}>
           <Tooltip title={copied ? 'Copied' : 'Copy'}>
             <IconButton size="small" onClick={handleCopy} aria-label="Copy message">

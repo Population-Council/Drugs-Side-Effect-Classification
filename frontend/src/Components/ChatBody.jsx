@@ -1,12 +1,11 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useCookies } from 'react-cookie';
-import { Box, Grid, Avatar, Typography } from '@mui/material';
+import { Box, Grid, Typography } from '@mui/material';
 import Attachment from './Attachment';
 import ChatInput from './ChatInput';
-import UserAvatar from '../Assets/UserAvatar.svg';
 import StreamingResponse from './StreamingResponse';
 import createMessageBlock from '../utilities/createMessageBlock';
-import { ALLOW_FILE_UPLOAD, ALLOW_VOICE_RECOGNITION, ALLOW_FAQ, USERMESSAGE_TEXT_COLOR, WEBSOCKET_API, ALLOW_CHAT_HISTORY } from '../utilities/constants';
+import { ALLOW_FILE_UPLOAD, ALLOW_VOICE_RECOGNITION, ALLOW_FAQ, USERMESSAGE_TEXT_COLOR, WEBSOCKET_API, ALLOW_CHAT_HISTORY, CHAT_TOP_SPACING } from '../utilities/constants';
 import BotFileCheckReply from './BotFileCheckReply';
 import SpeechRecognitionComponent from './SpeechRecognition';
 import { FAQExamples } from './index';
@@ -16,20 +15,25 @@ import { useProcessing } from '../contexts/ProcessingContext';
 import BotReply from './BotReply';
 import { useRole } from '../contexts/RoleContext';
 
-const TOBI_GREETING_MD = `**Hi — I’m Tobi.** I’m your virtual assistant for **SSLN & I2I**.
-
-I can help you:
-- Answer questions about programs, policies, and data
-- Surface the right resources (with links)
-- Compare two programs (with links)
-- Summarize PDFs 
-
-Ask me anything to get started. Type **/help** for tips.`;
+// Updated greeting: "Tobi" only, and removed the “ready to answer…” line
+const TOBI_GREETING_MD = `**Tobi**`;
 
 function UserReply({ message }) {
   return (
     <Grid container direction='row' justifyContent='flex-end' alignItems='flex-start' spacing={1}>
-      <Grid item className='userMessage' sx={{ backgroundColor: (theme) => theme.palette.background.userMessage, color: USERMESSAGE_TEXT_COLOR, padding: '10px 15px', borderRadius: '20px', maxWidth: '80%', wordWrap: 'break-word', mt: 1 }}>
+      <Grid
+        item
+        className='userMessage'
+        sx={{
+          backgroundColor: (theme) => theme.palette.background.userMessage,
+          color: USERMESSAGE_TEXT_COLOR,
+          padding: '10px 15px',
+          borderRadius: '20px',
+          maxWidth: '80%',
+          wordWrap: 'break-word',
+          mt: 1
+        }}
+      >
         <Typography variant='body2'>{message}</Typography>
       </Grid>
     </Grid>
@@ -46,25 +50,21 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
   const messagesEndRef = useRef(null);
   const websocket = useRef(null);
   const [isWsConnected, setIsWsConnected] = useState(false);
-
   const greetedRef = useRef(false);
 
-  // Open ONE WebSocket connection on mount (don’t tie to `processing`)
+  // Open ONE WebSocket connection on mount
   useEffect(() => {
     if (!WEBSOCKET_API) {
       console.error("WebSocket API URL is not defined. Set REACT_APP_WEBSOCKET_API in a .env file.");
       return;
     }
-    console.log("Opening WebSocket to:", WEBSOCKET_API);
     websocket.current = new WebSocket(WEBSOCKET_API);
 
     websocket.current.onopen = () => {
-      console.log("WebSocket Connected");
       setIsWsConnected(true);
     };
 
     websocket.current.onclose = (event) => {
-      console.log(`WebSocket closed. Code: ${event.code}, Reason: ${event.reason}`);
       setIsWsConnected(false);
       if (processing) setProcessing(false);
     };
@@ -77,11 +77,10 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
 
     return () => {
       if (websocket.current && websocket.current.readyState === WebSocket.OPEN) {
-        console.log("Closing WebSocket on unmount");
         websocket.current.close();
       }
     };
-  }, []); // <-- important: only once
+  }, []); 
 
   // Initial greeting (only once, only if no history)
   useEffect(() => {
@@ -125,7 +124,6 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
         role: selectedRole,
         history: historyToSend
       };
-      console.log("Sending payload:", messagePayload);
       websocket.current.send(JSON.stringify(messagePayload));
     } else if (!trimmedMessage) {
       console.warn("Attempted to send an empty message.");
@@ -182,7 +180,7 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
         "SENT",
         "",
         "",
-        [], // never attach sources; backend sends inline bullets
+        [],
         new Date().toISOString()
       );
       addMessage(botMessageBlock);
@@ -200,6 +198,7 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
           overflowX: 'hidden',
           mb: 1,
           px: { xs: 2, md: 3 },
+          pt: `${CHAT_TOP_SPACING}px`, // NEW: space between header and first message (easy to edit)
           '&::-webkit-scrollbar': { width: '6px' },
           '&::-webkit-scrollbar-track': { background: '#f1f1f1' },
           '&::-webkit-scrollbar-thumb': { background: '#888', borderRadius: '3px' },
