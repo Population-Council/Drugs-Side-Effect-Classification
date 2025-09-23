@@ -13,7 +13,7 @@ import {
 
 const theme = createTheme({
   typography: {
-    // (2) Switch global font to Arial
+    // Global font to Arial
     fontFamily: 'Arial, Helvetica, sans-serif',
   },
   palette: {
@@ -21,9 +21,9 @@ const theme = createTheme({
       main: PRIMARY_MAIN,
       50: primary_50,
     },
-    // (3) Make default/main text color red for testing
     text: {
-      primary: 'red',
+      // Use hex (or rgb/hsl), not a named color
+      primary: '#ff0000',          // testing: main font color red
       secondary: 'rgba(0,0,0,0.6)',
     },
     background: {
@@ -38,12 +38,11 @@ const theme = createTheme({
       main: SECONDARY_MAIN,
     },
   },
-  // also enforce red text at the root level for generic elements
   components: {
     MuiCssBaseline: {
       styleOverrides: {
         body: {
-          color: 'red',
+          color: '#ff0000',        // also hex here for testing
           fontFamily: 'Arial, Helvetica, sans-serif',
         },
       },
