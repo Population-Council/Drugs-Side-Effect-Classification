@@ -64,19 +64,19 @@ function BotReply({ message, name = 'Tobi' }) {
         <Box sx={{ mt: 0.5, display: 'flex', justifyContent: 'flex-start', gap: 0.5 }}>
           <Tooltip title={copied ? 'Copied' : 'Copy'}>
             <IconButton size="small" onClick={handleCopy} aria-label="Copy message">
-              {copied ? <FiCheck size={16} /> : <FiCopy size={16} />}
+              {copied ? <FiCheck size={20} /> : <FiCopy size={20} />}
             </IconButton>
           </Tooltip>
 
           <Tooltip title="Thumbs up">
             <IconButton size="small" onClick={handleUp} aria-label="Thumbs up">
-              <FiThumbsUp size={16} />
+              <FiThumbsUp size={20} />
             </IconButton>
           </Tooltip>
 
           <Tooltip title="Thumbs down">
             <IconButton size="small" onClick={handleDown} aria-label="Thumbs down">
-              <LuThumbsDown size={16} />
+              <LuThumbsDown size={20} />
             </IconButton>
           </Tooltip>
 

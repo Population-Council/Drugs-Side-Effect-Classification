@@ -16,11 +16,11 @@ const theme = createTheme({
     // Global font to Arial
     fontFamily: 'Arial, Helvetica, sans-serif',
     body1: {
-      fontSize: '50px',
+      fontSize: '16px',
       lineHeight: 1.2,
     },
     body2: {
-      fontSize: '50px',
+      fontSize: '16px',
       lineHeight: 1.2,
     },
   },
