@@ -4,6 +4,7 @@ import boto3
 import re
 import logging
 import urllib.parse
+import random
 from botocore.exceptions import ClientError
 from constants import load_from_env, REFERENCE_URLS
 
@@ -548,6 +549,70 @@ def _gen_relevance_reasons_via_model(user_prompt: str, doc_snips: dict) -> dict:
         return {k: (v or "").strip() for k, v in obj["reasons"].items()}
     return {k: (v or "").strip() for k, v in obj.items() if isinstance(v, str)}
 
+# --- Lead-in generators for the “Sources at a glance” block ---
+
+def _gen_sources_leadin_via_model(user_prompt: str) -> str:
+    """
+    Model-chosen one-line statement inviting the user to check more resources.
+    Used as a fallback when not in the Nigeria + PrEP rollout/budget path.
+    """
+    system_text = (
+        "Write a short, friendly, ONE-LINE STATEMENT that introduces additional resources "
+        "the user might want to check. Avoid emojis and salesy tone. 6–14 words. "
+        "Plain text only. Do NOT end with a question mark."
+    )
+    user_text = (
+        f"User question:\n{user_prompt}\n\n"
+        "Return only the single statement line (e.g., 'Here are a few additional resources you might find useful.')."
+    )
+    messages = [{"role": "user", "content": [{"text": user_text}]}]
+    out = (_model_complete_text(messages, system=system_text) or "").strip()
+    out = re.sub(r"[\r\n]+", " ", out).strip()
+    if not out:
+        out = "Here are a few additional resources you might find useful."
+    if len(out) > 140:
+        out = out[:140].rstrip() + "…"
+    if out.endswith("?"):
+        out = out.rstrip("?").rstrip()
+        if not out.endswith("."):
+            out += "."
+    return out
+
+def _random_sources_leadin() -> str:
+    """Pick a friendly statement at random (no model call)."""
+    options = [
+        "I also pulled a few official sources you can explore.",
+        "Here are additional resources I grabbed in case you want more detail.",
+        "These are a few more resources I think could help.",
+        "I collected some extra sources that may be useful.",
+        "You might find these additional official resources helpful.",
+        "I added a few more resources you can check out.",
+        "These references could help if you want to dive deeper.",
+        "I gathered some more sources in case they’re useful.",
+        "Here are a few extra resources worth a look.",
+        "These additional resources might answer follow-up questions you have.",
+        "I included more resources that may inform planning.",
+        "You can also review these official sources for more context."
+    ]
+    return random.choice(options)
+
+def _pick_sources_leadin(user_prompt: str) -> str:
+    """
+    If prompt is about Nigeria + PrEP rollout/budget/planning, use random statement.
+    Otherwise, use model-chosen statement (with safe fallback).
+    """
+    toks = set(re.findall(r"[a-z0-9\-]+", _norm(user_prompt)))
+    has_ng = "nigeria" in toks or "ng" in toks
+    has_prep = any(t in toks for t in ("prep", "pre-exposure", "preexposure"))
+    is_rollout_budget = any(t in toks for t in ("rollout", "budget", "planning", "cost", "costing"))
+    if has_ng and has_prep and is_rollout_budget:
+        return _random_sources_leadin()
+    try:
+        return _gen_sources_leadin_via_model(user_prompt)
+    except Exception as e:
+        logger.warning(f"Lead-in model fallback due to error: {e}")
+        return _random_sources_leadin()
+
 # ---------- URL detection ----------
 _URL_RE = re.compile(r"https?://[^\s)>\]]+", re.IGNORECASE)
 
@@ -634,6 +699,13 @@ def _stream_summary_from_chunks(connection_id: str, prompt: str, doc_url: str, h
             logger.error(f"Stream error (summary): {err}")
             _end_with_error(connection_id, "Model streaming error.", 500)
             return
+
+    # Add a consistent follow-up prompt after the summary
+    try:
+        follow_up = "\n\nWould you like me to give you a brief summary of these documents or a step-by-step walkthrough?\n"
+        _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": follow_up})
+    except Exception as e:
+        logger.warning(f"Failed to append follow-up after summary: {e}")
 
     # No structured "sources" payload anymore.
     _send_ws(connection_id, {"type": "end", "statusCode": 200})
@@ -867,13 +939,25 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
                     inline_lines.append(f"- relevant to the question — {_md_link(url, base_label)}")
 
         if inline_lines:
-            
+            # Lead-in: random for NG+PrEP rollout/budget; else model-chosen
+            try:
+                lead_in = _pick_sources_leadin(prompt)
+            except Exception as e:
+                logger.warning(f"Lead-in generation failed, using random fallback: {e}")
+                lead_in = _random_sources_leadin()
+
+            sources_block = (
+                "\n\n&nbsp;\n\n\n"
+                f"_{lead_in}_\n"
+                + "\n".join(inline_lines)
+                + "\n\nWould you like me to give you a brief summary of these documents or a step-by-step walkthrough?\n"
+            )
+
             _send_ws(connection_id, {
                 "type": "delta",
                 "statusCode": 200,
                 "format": "markdown",
-                "text": "\n\n&nbsp;\n\n**Sources at a glance**\n" + "\n".join(inline_lines) + "\n"
-
+                "text": sources_block
             })
 
     _send_ws(connection_id, {"type": "end", "statusCode": 200})
