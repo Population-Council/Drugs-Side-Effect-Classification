@@ -1,3 +1,4 @@
+// src/Components/AppHeader.jsx
 import React from "react";
 import { AppBar, Grid, Box, Typography, useTheme } from "@mui/material";
 import Logo from "../Assets/tobi.png";
@@ -50,7 +51,6 @@ function AppHeader({ showSwitch }) {
               src={Logo}
               alt="App main Logo"
               sx={{
-                // Make image smaller on mobile (xs) and larger on desktop (md)
                 height: { xs: "55%", md: "65%" },
                 maxHeight: { xs: "80px", md: "140px" },
                 width: "auto",
@@ -61,13 +61,12 @@ function AppHeader({ showSwitch }) {
               variant="h6"
               sx={{
                 mt: 0.5,
-                fontWeight: 500,
-                color: theme.palette.text.primary,
-                // Use smaller font size on mobile (xs) and larger on desktop (md)
+                fontWeight: 600,        // slightly bold / semi-bold
+                color: "#FFFFFF",        // white font
                 fontSize: { xs: "1.5rem", md: "2.20rem" },
               }}
             >
-              Hi, I’m Tobi
+              Tobi
             </Typography>
             <Typography
               variant="body2"
@@ -76,18 +75,12 @@ function AppHeader({ showSwitch }) {
                 fontSize: { xs: "0.8rem", md: "1.1rem" },
               }}
             >
-              I’m ready to answer any questions about SSLN &amp; I2I.
             </Typography>
           </Box>
         </Grid>
 
         {/* Right controls */}
-        <Grid
-          item
-          // 1. Give the right spacer the SAME width as the left spacer
-          // This ensures the center content is always perfectly aligned.
-          sx={{ width: { xs: 32, md: 64 } }}
-        >
+        <Grid item sx={{ width: { xs: 32, md: 64 } }}>
           <Grid
             container
             alignItems="center"
