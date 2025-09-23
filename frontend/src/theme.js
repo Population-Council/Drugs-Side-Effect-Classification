@@ -17,11 +17,9 @@ const theme = createTheme({
     fontFamily: 'Arial, Helvetica, sans-serif',
     body1: {
       fontSize: '16px',
-      lineHeight: 1.2,
     },
     body2: {
       fontSize: '16px',
-      lineHeight: 1.2,
     },
   },
 
