@@ -15,7 +15,16 @@ const theme = createTheme({
   typography: {
     // Global font to Arial
     fontFamily: 'Arial, Helvetica, sans-serif',
+    body1: {
+      fontSize: '50px',
+      lineHeight: 1.2,
+    },
+    body2: {
+      fontSize: '50px',
+      lineHeight: 1.2,
+    },
   },
+
   palette: {
     primary: {
       main: PRIMARY_MAIN,
@@ -23,7 +32,7 @@ const theme = createTheme({
     },
     text: {
       // Use hex (or rgb/hsl), not a named color
-      primary: '#ff0000',          // testing: main font color red
+      primary: '#5d5d5d',          // testing: main font color red
       secondary: 'rgba(0,0,0,0.6)',
     },
     background: {
@@ -42,7 +51,7 @@ const theme = createTheme({
     MuiCssBaseline: {
       styleOverrides: {
         body: {
-          color: '#ff0000',        // also hex here for testing
+          color: '#5d5d5d',        // also hex here for testing
           fontFamily: 'Arial, Helvetica, sans-serif',
         },
       },
