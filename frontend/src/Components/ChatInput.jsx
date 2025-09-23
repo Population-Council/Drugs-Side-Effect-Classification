@@ -110,7 +110,7 @@ function ChatInput({ onSendMessage, showLeftNav, setLeftNav }) {
           onClick={handleSendMessage}
           color={(message.trim() !== "" || selectedFile) && !(processing || isListening) ? "primary" : "default"}
         >
-          <SendIcon />
+      <SendIcon sx={{ fontSize: 20 }} />
         </IconButton>
       </InputAdornment>
     ),
