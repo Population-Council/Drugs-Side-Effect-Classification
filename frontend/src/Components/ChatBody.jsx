@@ -1,3 +1,4 @@
+// src/Components/ChatBody.jsx
 import React, { useRef, useEffect, useState } from 'react';
 import { useCookies } from 'react-cookie';
 import { Box, Grid, Typography } from '@mui/material';
@@ -5,7 +6,15 @@ import Attachment from './Attachment';
 import ChatInput from './ChatInput';
 import StreamingResponse from './StreamingResponse';
 import createMessageBlock from '../utilities/createMessageBlock';
-import { ALLOW_FILE_UPLOAD, ALLOW_VOICE_RECOGNITION, ALLOW_FAQ, USERMESSAGE_TEXT_COLOR, WEBSOCKET_API, ALLOW_CHAT_HISTORY, CHAT_TOP_SPACING } from '../utilities/constants';
+import {
+  ALLOW_FILE_UPLOAD,
+  ALLOW_VOICE_RECOGNITION,
+  ALLOW_FAQ,
+  USERMESSAGE_TEXT_COLOR,
+  WEBSOCKET_API,
+  ALLOW_CHAT_HISTORY,
+  CHAT_TOP_SPACING
+} from '../utilities/constants';
 import BotFileCheckReply from './BotFileCheckReply';
 import SpeechRecognitionComponent from './SpeechRecognition';
 import { FAQExamples } from './index';
@@ -15,7 +24,6 @@ import { useProcessing } from '../contexts/ProcessingContext';
 import BotReply from './BotReply';
 import { useRole } from '../contexts/RoleContext';
 
-// Updated greeting: "Tobi" only, and removed the “ready to answer…” line
 const TOBI_GREETING_MD = `**Hi — I’m Tobi.** I’m your virtual assistant for **SSLN & I2I**.
 
 I can help you:
@@ -35,14 +43,19 @@ function UserReply({ message }) {
         sx={{
           backgroundColor: (theme) => theme.palette.background.userMessage,
           color: USERMESSAGE_TEXT_COLOR,
-          padding: '10px 15px',
-          borderRadius: '20px',
+          // (1) More padding + very rounded pill bubble
+          padding: '14px 20px',
+          borderRadius: '9999px',
           maxWidth: '80%',
           wordWrap: 'break-word',
-          mt: 1
+          mt: 1,
+          // ensure Arial applies to the bubble content
+          fontFamily: 'Arial, Helvetica, sans-serif',
         }}
       >
-        <Typography variant='body2'>{message}</Typography>
+        <Typography variant='body2' sx={{ fontFamily: 'inherit' }}>
+          {message}
+        </Typography>
       </Grid>
     </Grid>
   );
@@ -60,7 +73,6 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
   const [isWsConnected, setIsWsConnected] = useState(false);
   const greetedRef = useRef(false);
 
-  // Open ONE WebSocket connection on mount
   useEffect(() => {
     if (!WEBSOCKET_API) {
       console.error("WebSocket API URL is not defined. Set REACT_APP_WEBSOCKET_API in a .env file.");
@@ -68,20 +80,9 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
     }
     websocket.current = new WebSocket(WEBSOCKET_API);
 
-    websocket.current.onopen = () => {
-      setIsWsConnected(true);
-    };
-
-    websocket.current.onclose = (event) => {
-      setIsWsConnected(false);
-      if (processing) setProcessing(false);
-    };
-
-    websocket.current.onerror = (error) => {
-      console.error("WebSocket Error:", error);
-      setIsWsConnected(false);
-      if (processing) setProcessing(false);
-    };
+    websocket.current.onopen = () => setIsWsConnected(true);
+    websocket.current.onclose = () => { setIsWsConnected(false); if (processing) setProcessing(false); };
+    websocket.current.onerror = () => { setIsWsConnected(false); if (processing) setProcessing(false); };
 
     return () => {
       if (websocket.current && websocket.current.readyState === WebSocket.OPEN) {
@@ -90,7 +91,6 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
     };
   }, []); 
 
-  // Initial greeting (only once, only if no history)
   useEffect(() => {
     if (!greetedRef.current && (!messageList || messageList.length === 0)) {
       const timestamp = new Date().toISOString();
@@ -109,7 +109,6 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
     }
   }, [messageList, addMessage]);
 
-  // Always scroll to newest message
   useEffect(() => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -126,12 +125,7 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
       setQuestionAsked(true);
 
       const historyToSend = ALLOW_CHAT_HISTORY ? messageList.slice(-20) : [];
-      const messagePayload = {
-        action: 'sendMessage',
-        prompt: trimmedMessage,
-        role: selectedRole,
-        history: historyToSend
-      };
+      const messagePayload = { action: 'sendMessage', prompt: trimmedMessage, role: selectedRole, history: historyToSend };
       websocket.current.send(JSON.stringify(messagePayload));
     } else if (!trimmedMessage) {
       console.warn("Attempted to send an empty message.");
@@ -206,7 +200,7 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
           overflowX: 'hidden',
           mb: 1,
           px: { xs: 2, md: 3 },
-          pt: `${CHAT_TOP_SPACING}px`, // NEW: space between header and first message (easy to edit)
+          pt: `${CHAT_TOP_SPACING}px`,
           '&::-webkit-scrollbar': { width: '6px' },
           '&::-webkit-scrollbar-track': { background: '#f1f1f1' },
           '&::-webkit-scrollbar-thumb': { background: '#888', borderRadius: '3px' },
@@ -232,10 +226,7 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
         {/* Live stream */}
         {processing && isWsConnected && (
           <Box sx={{ mb: 2 }}>
-            <StreamingResponse
-              websocket={websocket.current}
-              onStreamComplete={handleStreamComplete}
-            />
+            <StreamingResponse websocket={websocket.current} onStreamComplete={handleStreamComplete} />
           </Box>
         )}
         <div ref={messagesEndRef} />
