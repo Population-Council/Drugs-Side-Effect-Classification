@@ -330,6 +330,7 @@ def _doc_url_from_s3_uri(s3_uri: str) -> str:
         return s3_uri
 
 def _score_value(v):
+    """Convert score to sortable number; None/'N/A' -> -inf."""
     if isinstance(v, (int, float)):
         return float(v)
     try:
@@ -340,6 +341,7 @@ def _score_value(v):
         return float("-inf")
 
 def _dedupe_sources_best(items: list[dict]) -> list[dict]:
+    """De-duplicate by normalized filename/label; keep the variant with the BEST (highest) score)."""
     best_by_key: dict[str, dict] = {}
     order: list[str] = []
     for it in items or []:
@@ -566,6 +568,31 @@ def _extract_first_url_from_history(history_raw) -> str | None:
             continue
     return None
 
+# ---------- Follow-up question builder ----------
+def _tok_loose(s: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9]+", (s or "").lower()))
+
+def _build_follow_up_question(prompt: str) -> str | None:
+    toks = _tok_loose(prompt)
+    if "prep" in toks:
+        return ("Would you prefer a brief summary of how to use PrEP-IT, or a step-by-step walkthrough "
+                "to build a Nigeria-specific costing scenario (if you share target population, delivery model, and timeframe)?")
+    return "Would you like a brief summary, or a step-by-step walkthrough?"
+
+def _sources_lead_in(prompt: str) -> str:
+    """Conversational alternatives to replace 'Sources at a glance'."""
+    variants = [
+        "These resources may also help:",
+        "You might also find these useful:",
+        "Here are a few helpful sources:",
+        "These are good places to look next:"
+    ]
+    try:
+        idx = sum(ord(c) for c in (prompt or "")) % len(variants)
+        return variants[idx]
+    except Exception:
+        return variants[0]
+
 # ---------- Summarization (PDF) ----------
 def _kb_retrieve_for_doc(prompt: str, doc_url_hint: str, k: int = 20) -> tuple[str, list[dict]]:
     all_text, all_sources = _kb_retrieve(prompt, cfg.KNOWLEDGE_BASE_ID, k)
@@ -635,7 +662,6 @@ def _stream_summary_from_chunks(connection_id: str, prompt: str, doc_url: str, h
             _end_with_error(connection_id, "Model streaming error.", 500)
             return
 
-    # No structured "sources" payload anymore.
     _send_ws(connection_id, {"type": "end", "statusCode": 200})
 
 # ---------- WebSocket helpers ----------
@@ -803,12 +829,12 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
                     "type": "delta",
                     "statusCode": 200,
                     "format": "markdown",
-                    "text": "\n\n" + _md_link(other_url, _title_for_url(other_url)) + "\n"
+                    "text": "\n\n" + _md_link(other_url, _title_for_url(other_url)) + "\n\n"  # ensure a blank line after
                 })
     except Exception as e:
         logger.warning(f"Post-append hyperlink step error: {e}")
 
-    # Inline suggested reference
+    # Inline suggested reference (now with special label for AIDSinfo)
     try:
         if ref_url:
             ref_domain = urllib.parse.urlparse(ref_url).netloc.lower()
@@ -821,8 +847,9 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
             ))
             if not already_contains_url and not already_linked_domain:
                 if ref_domain.endswith("aidsinfo.unaids.org"):
-                    prefix = "\n\nHIV estimates broken down by age and gender. (right here)\n\n"
-                    link_md = _md_link(ref_url, ref_url)
+                    # Emit as a clean Markdown link with the label 'UNAIDS AIDSinfo'
+                    link_md = _md_link(ref_url, "UNAIDS AIDSinfo")
+                    prefix = "\n\n"
                 else:
                     prefix = "\n\n"
                     link_md = _md_link(ref_url, _title_for_url(ref_url))
@@ -830,12 +857,12 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
                     "type": "delta",
                     "statusCode": 200,
                     "format": "markdown",
-                    "text": prefix + link_md + "\n"
+                    "text": prefix + link_md + "\n\n"  # extra blank line after the hyperlink
                 })
     except Exception as e:
         logger.warning(f"Inline suggested reference append error: {e}")
 
-    # -------- Inline-only "Sources at a glance" (reason-first) --------
+    # -------- Inline-only conversational sources lead-in --------
     sources_to_send = []
     if use_kb and kb_sources:
         sources_to_send.extend(kb_sources)
@@ -867,12 +894,21 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
                     inline_lines.append(f"- relevant to the question — {_md_link(url, base_label)}")
 
         if inline_lines:
+            lead_in = _sources_lead_in(prompt)  # conversational, not bold
             _send_ws(connection_id, {
                 "type": "delta",
                 "statusCode": 200,
                 "format": "markdown",
-                "text": "\n\n**Sources at a glance**\n" + "\n".join(inline_lines)
+                "text": "\n" + lead_in + "\n" + "\n".join(inline_lines)
             })
+
+    # -------- Append conversational follow-up --------
+    try:
+        follow_up = _build_follow_up_question(prompt)
+        if follow_up:
+            _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": "\n\n" + follow_up})
+    except Exception as e:
+        logger.warning(f"Follow-up append error: {e}")
 
     _send_ws(connection_id, {"type": "end", "statusCode": 200})
 
@@ -905,11 +941,17 @@ def lambda_handler(event, _context):
         # 2) Runtime routing: link-only
         rhit = _match_runtime(prompt)
         if rhit and rhit.get("link_only"):
-            # Link-only still streams markdown, no structured sources
             url = (rhit.get("source_url") or "").strip()
             name = (rhit.get("primary_source") or "Link").strip()
             text = f"{rhit.get('answer_text') or 'Here’s the best source:'}\n\n[{name}]({url})" if url else (rhit.get('answer_text') or 'Here’s the best source.')
             _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": text})
+            # follow-up
+            try:
+                follow_up = _build_follow_up_question(prompt)
+                if follow_up:
+                    _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": "\n\n" + follow_up})
+            except Exception as e:
+                logger.warning(f"Follow-up append error (link-only): {e}")
             _send_ws(connection_id, {"type": "end", "statusCode": 200})
             return {"statusCode": 200, "body": "RUNTIME_LINK_ONLY_OK"}
 
@@ -927,7 +969,7 @@ def lambda_handler(event, _context):
             _stream_summary_from_chunks(connection_id, prompt, first_url, history_messages=history_msgs)
             return {"statusCode": 200, "body": "SUMMARY_OK"}
 
-        # 3) COUNT flow
+        # 3) COUNT flow (disabled in this build)
         if _looks_like_count(prompt):
             if not (_os and cfg.OPENSEARCH_INDEX and cfg.OPENSEARCH_TEXT_FIELD and cfg.OPENSEARCH_DOC_ID_FIELD and cfg.OPENSEARCH_PAGE_FIELD):
                 _end_with_error(connection_id, "Document counting is not configured.", 501)
@@ -937,10 +979,8 @@ def lambda_handler(event, _context):
                 _end_with_error(connection_id, "I couldn't find the keyword to count. Try: how many papers mention \"cats\"?", 400)
                 return {"statusCode": 400, "body": "No keyword extracted"}
             try:
-                summary, details_md, _ = _os_count_keyword(keyword=None)  # not used in this trimmed build
-                _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": summary + "\n\n" + details_md})
-                _send_ws(connection_id, {"type": "end", "statusCode": 200})
-                return {"statusCode": 200, "body": "COUNT OK"}
+                _end_with_error(connection_id, "Document counting is not enabled in this build.", 501)
+                return {"statusCode": 501, "body": "COUNT disabled"}
             except Exception as e:
                 logger.error(f"COUNT error: {e}", exc_info=True)
                 _end_with_error(connection_id, "There was a problem counting documents.", 500)
