@@ -106,9 +106,9 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
   return (
     <Box sx={{ width: '100%' }}>
       <Grid container direction="row" justifyContent="flex-start" alignItems="flex-start" spacing={1} wrap="nowrap">
-        <Grid item>
+        {/* <Grid item>
           <Avatar alt="Bot Avatar" src={BotAvatar} sx={{ width: 40, height: 40, mt: 1 }} />
-        </Grid>
+        </Grid> */}
         {/* NO bubble: plain text area for bot stream */}
         <Grid item xs sx={{ position: "relative", mt: 1, minWidth: '50px', maxWidth: 'calc(100% - 50px)', wordWrap: 'break-word', minHeight: '40px' }}>
           {currentStreamText && (

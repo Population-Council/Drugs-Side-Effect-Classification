@@ -862,7 +862,7 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
             reason = (reasons.get(key) or "").strip()
             if url:
                 if reason:
-                    inline_lines.append(f"- {_md_link(url, base_label)} - {reason}")
+                    inline_lines.append(f"- {_md_link(url, base_label + ' ⬈')} - {reason}")
                 else:
                     inline_lines.append(f"- relevant to the question — {_md_link(url, base_label)}")
 

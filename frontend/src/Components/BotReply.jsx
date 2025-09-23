@@ -80,12 +80,7 @@ function BotReply({ message, name = 'Tobi' }) {
             </IconButton>
           </Tooltip>
 
-          {/* Extra icon with no action */}
-          <Tooltip title="Export">
-            <IconButton size="small" aria-label="Export (no action)">
-              <AiOutlineExport size={16} />
-            </IconButton>
-          </Tooltip>
+  
         </Box>
       </Grid>
     </Grid>
