@@ -1,11 +1,11 @@
 // src/Components/BotReply.jsx
 import React, { useState } from 'react';
-import { Grid, Box, Avatar, Typography, IconButton, Tooltip } from '@mui/material';
-import ContentCopyIcon from '@mui/icons-material/ContentCopy';
-import CheckIcon from '@mui/icons-material/Check';
-import ThumbUpOffAltIcon from '@mui/icons-material/ThumbUpOffAlt';
-import ThumbDownOffAltIcon from '@mui/icons-material/ThumbDownOffAlt';
-import BotAvatar from '../Assets/BotAvatar.svg';
+import { Grid, Box, Typography, IconButton, Tooltip } from '@mui/material';
+// React Icons replacements
+import { FiCopy, FiThumbsUp, FiCheck } from 'react-icons/fi';
+import { LuThumbsDown } from 'react-icons/lu';
+import { AiOutlineExport } from 'react-icons/ai';
+
 import ReactMarkdown from 'react-markdown';
 import { ALLOW_MARKDOWN_BOT, BOTMESSAGE_TEXT_COLOR } from '../utilities/constants';
 
@@ -35,16 +35,10 @@ function BotReply({ message, name = 'Tobi' }) {
       <Grid item xs="auto" sx={{ maxWidth: '100%' }}>
         {/* NO bubble: removed background + border for bot messages */}
         <Box sx={{ p: 0, maxWidth: { xs: '100%', sm: '80%' }, wordWrap: 'break-word' }}>
-          {/* Row 1: avatar + bold name */}
+          {/* Row 1 (avatar + name) intentionally hidden per your last version */}
           {/* <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Avatar
-              alt={`${name} Avatar`}
-              src={BotAvatar}
-              sx={{ width: 28, height: 28, '& .MuiAvatar-img': { objectFit: 'contain' } }}
-            />
-            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: BOTMESSAGE_TEXT_COLOR }}>
-              {name}
-            </Typography>
+            <Avatar alt={`${name} Avatar`} src={BotAvatar} sx={{ width: 28, height: 28, '& .MuiAvatar-img': { objectFit: 'contain' } }} />
+            <Typography variant="subtitle2" sx={{ fontWeight: 700, color: BOTMESSAGE_TEXT_COLOR }}>{name}</Typography>
           </Box> */}
 
           {/* Row 2: message body */}
@@ -70,17 +64,26 @@ function BotReply({ message, name = 'Tobi' }) {
         <Box sx={{ mt: 0.5, display: 'flex', justifyContent: 'flex-start', gap: 0.5 }}>
           <Tooltip title={copied ? 'Copied' : 'Copy'}>
             <IconButton size="small" onClick={handleCopy} aria-label="Copy message">
-              {copied ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
+              {copied ? <FiCheck size={16} /> : <FiCopy size={16} />}
             </IconButton>
           </Tooltip>
+
           <Tooltip title="Thumbs up">
             <IconButton size="small" onClick={handleUp} aria-label="Thumbs up">
-              <ThumbUpOffAltIcon fontSize="small" />
+              <FiThumbsUp size={16} />
             </IconButton>
           </Tooltip>
+
           <Tooltip title="Thumbs down">
             <IconButton size="small" onClick={handleDown} aria-label="Thumbs down">
-              <ThumbDownOffAltIcon fontSize="small" />
+              <LuThumbsDown size={16} />
+            </IconButton>
+          </Tooltip>
+
+          {/* Extra icon with no action */}
+          <Tooltip title="Export">
+            <IconButton size="small" aria-label="Export (no action)">
+              <AiOutlineExport size={16} />
             </IconButton>
           </Tooltip>
         </Box>
