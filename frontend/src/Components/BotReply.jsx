@@ -36,7 +36,7 @@ function BotReply({ message, name = 'Tobi' }) {
         {/* NO bubble: removed background + border for bot messages */}
         <Box sx={{ p: 0, maxWidth: { xs: '100%', sm: '80%' }, wordWrap: 'break-word' }}>
           {/* Row 1: avatar + bold name */}
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          {/* <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Avatar
               alt={`${name} Avatar`}
               src={BotAvatar}
@@ -45,7 +45,7 @@ function BotReply({ message, name = 'Tobi' }) {
             <Typography variant="subtitle2" sx={{ fontWeight: 700, color: BOTMESSAGE_TEXT_COLOR }}>
               {name}
             </Typography>
-          </Box>
+          </Box> */}
 
           {/* Row 2: message body */}
           <Box sx={{ mt: 1 }}>
