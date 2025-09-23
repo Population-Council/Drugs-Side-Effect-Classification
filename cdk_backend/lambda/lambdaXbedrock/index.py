@@ -867,11 +867,13 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
                     inline_lines.append(f"- relevant to the question — {_md_link(url, base_label)}")
 
         if inline_lines:
+            
             _send_ws(connection_id, {
                 "type": "delta",
                 "statusCode": 200,
                 "format": "markdown",
-                "text": "\n\n**Sources at a glance**\n" + "\n".join(inline_lines)
+                "text": "\n\n&nbsp;\n\n**Sources at a glance**\n" + "\n".join(inline_lines) + "\n"
+
             })
 
     _send_ws(connection_id, {"type": "end", "statusCode": 200})
