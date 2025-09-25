@@ -36,31 +36,42 @@ Ask me anything to get started. Type **/help** for tips.`;
 
 function UserReply({ message }) {
   return (
-    <Grid container direction='row' justifyContent='flex-end' alignItems='flex-start' spacing={1}>
+    <Grid
+      container
+      direction="row"
+      justifyContent="flex-end"
+      alignItems="flex-start"
+      spacing={1}
+    >
       <Grid
         item
-        className='userMessage'
+        className="userMessage"
         sx={{
           backgroundColor: (theme) => theme.palette.background.userMessage,
-          color: USERMESSAGE_TEXT_COLOR,
-          // (1) More padding + very rounded pill bubble
-          padding: '14px 20px',
-          borderRadius: '9999px',
-          maxWidth: '80%',
+          color: '#fff',                      // white text
+          padding: '16px 22px',              // a bit more padding
+          borderRadius: '9999px',            // extra-round pill
+          maxWidth: '85%',                   // gives the bubble more breathing room
           wordWrap: 'break-word',
-          mt: 1,
-          // ensure Arial applies to the bubble content
+          mt: 1.25,                          // slightly more top margin for separation
           fontFamily: 'Arial, Helvetica, sans-serif',
+          boxShadow: (theme) =>             // subtle lift so the white text reads clearly
+            `0 1px 2px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.06)`,
         }}
       >
-        <Typography variant='body2' sx={{ fontFamily: 'inherit' }}>
+        <Typography
+          variant="body2"
+          sx={{
+            fontFamily: 'inherit',
+            lineHeight: 1.45,
+          }}
+        >
           {message}
         </Typography>
       </Grid>
     </Grid>
   );
 }
-
 function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
   const { messageList, addMessage } = useMessage();
   const { questionAsked, setQuestionAsked } = useQuestion();

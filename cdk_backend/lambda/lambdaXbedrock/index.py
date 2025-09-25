@@ -158,6 +158,7 @@ def _md_link(url: str, label: str | None = None) -> str:
 
 
 def _title_for_url(url: str) -> str:
+    """Produce a readable title/host label for a URL."""
     try:
         p = urllib.parse.urlparse(url)
         host = (p.netloc or "").lower()
@@ -167,8 +168,8 @@ def _title_for_url(url: str) -> str:
 
     domain_map = {
         "aidsinfo.unaids.org": "UNAIDS AIDSinfo",
-        "www.who.int": "World Health Organization (WHO)",
         "who.int": "World Health Organization (WHO)",
+        "www.who.int": "World Health Organization (WHO)",
         "prepwatch.org": "PrEPWatch",
         "phia.icap.columbia.edu": "ICAP PHIA",
         "icap.columbia.edu": "ICAP at Columbia University",
@@ -179,13 +180,17 @@ def _title_for_url(url: str) -> str:
         return path_last.title()
     if host:
         parts = host.split(".")
+        # Keep last 3 tokens for ccTLD public-suffix patterns like *.co.ug, *.ac.uk, *.go.ug, etc.
+        public_suffix_2nd = {"co", "ac", "go", "or", "gov", "edu"}
+        if len(parts) >= 3 and parts[-2] in public_suffix_2nd:
+            return ".".join(parts[-3:])
         if len(parts) > 2:
-            host = ".".join(parts[-2:])
+            return ".".join(parts[-2:])
         return host
     return url
 
 
-# ---------- URL detection & linkification (UPDATED) ----------
+# ---------- URL detection & linkification ----------
 # Matches ANY url (used for scans/extraction)
 _ANY_URL_RE = re.compile(r"https?://[^\s)>\]]+", re.IGNORECASE)
 
@@ -226,56 +231,36 @@ def _url_tokens(u: str) -> set[str]:
 
 
 def _pick_reference_url(prompt: str) -> str | None:
-    if not REFERENCE_URLS:
+    """
+    Choose the best 'one site to suggest' link. Prefer UNAIDS AIDSinfo for prevalence/estimates queries.
+    """
+    # Defensive default list if constants.REFERENCE_URLS is missing/empty
+    ref_list = REFERENCE_URLS if (REFERENCE_URLS and isinstance(REFERENCE_URLS, (list, tuple))) else [
+        "https://aidsinfo.unaids.org/",
+        "https://www.who.int/data/gho",
+        "https://phia.icap.columbia.edu/",
+    ]
+    if not ref_list:
         return None
+
     q = _tokenize(prompt)
-    if "prep" in q:
-        q.update({"pre", "preexposure", "prophylaxis"})
-    if "hiv" in q:
-        q.update({"aids"})
-    if "who" in q:
-        q.update({"world", "health", "organization"})
-    if "eswatini" in q or "swaziland" in q:
-        q.update({"sz", "eswatini", "swaziland"})
-    if "ghana" in q:
-        q.update({"gh"})
-    if "kenya" in q:
-        q.update({"ke"})
-    if "lesotho" in q:
-        q.update({"ls"})
-    if "malawi" in q:
-        q.update({"mw"})
-    if "mozambique" in q:
-        q.update({"mz"})
-    if "nigeria" in q:
-        q.update({"ng"})
-    if "tanzania" in q:
-        q.update({"tz"})
-    if "uganda" in q:
-        q.update({"ug"})
-    if "zambia" in q:
-        q.update({"zm"})
-    if "zimbabwe" in q:
-        q.update({"zw"})
-    if {"south", "africa"}.issubset(q):
-        q.update({"za", "rsa", "southafrica"})
-    if {"south", "sudan"}.issubset(q):
-        q.update({"ss", "southsudan"})
+    # Lightweight intent signal → strongly prefer UNAIDS
+    prefers_unaids = any(t in q for t in {"prevalence", "estimate", "estimates", "hiv", "incidence", "ghana"})
+
     best_url, best_score = None, -1
-    for u in REFERENCE_URLS:
+    for u in ref_list:
         toks = _url_tokens(u)
         score = sum(1 for t in toks if t in q)
-        if "unaids" in toks:
-            score += 1
+        # Heavier weight for UNAIDS when intent matches
+        if "unaids" in toks or "aidsinfo" in toks:
+            score += (5 if prefers_unaids else 3)
         if "who" in toks:
-            score += 1
-        if "prepwatch" in toks:
-            score += 1
+            score += 2
         if "icap" in toks or "phia" in toks:
-            score += 1
+            score += 2
         if score > best_score:
             best_score, best_url = score, u
-    return best_url or REFERENCE_URLS[0]
+    return best_url or ref_list[0]
 
 
 # ---------- OpenSearch (optional COUNT support) ----------
@@ -721,6 +706,7 @@ def _stream_summary_from_chunks(connection_id: str, prompt: str, doc_url: str, h
         f"{kb_text}\n"
         "</knowledge_snippets>\n\n"
         f"User request: {prompt}"
+        
     )
     messages: list[dict] = []
     if history_messages:
@@ -740,7 +726,7 @@ def _stream_summary_from_chunks(connection_id: str, prompt: str, doc_url: str, h
         _end_with_error(connection_id, "Model stream not available.", 500)
         return
 
-    # --- streaming with inline linkification (UPDATED) ---
+    # --- streaming with inline linkification ---
     pending = ""
     for ev in stream:
         if "contentBlockDelta" in ev:
@@ -910,6 +896,7 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
             f"{runtime_ctx}\n"
             f"<doc_excerpts>\n{kb_text}\n</doc_excerpts>\n\n"
             f"User question: {prompt}"
+            
         )
     else:
         user_text = (
@@ -923,7 +910,7 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
     messages.append({"role": "user", "content": [{"text": user_text}]})
     system = [{"text": cfg.SYSTEM_PROMPT}] if cfg.SYSTEM_PROMPT else None
 
-    # --- streaming with inline linkification (UPDATED) ---
+    # --- streaming with inline linkification ---
     sent_parts: list[str] = []
     pending = ""  # small buffer to avoid splitting a URL across chunks
 
@@ -972,22 +959,23 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
     # Build the full text we've already sent, for duplicate checks below
     full_summary = "".join(sent_parts)
 
-    # -------- Inline suggested reference (kept, now checks already-linkified text) --------
+    # -------- Inline suggested reference (improved) --------
     try:
         if ref_url:
             ref_domain = urllib.parse.urlparse(ref_url).netloc.lower()
-            already_contains_url = (ref_url in (full_summary or ""))
-            already_linked_domain = bool(re.search(
+            # Only suppress if the SAME DOMAIN is already linked; allow adding UNAIDS even if other links exist.
+            already_contains_ref = ref_url in (full_summary or "")
+            already_linked_same_domain = bool(re.search(
                 r"\]\(\s*https?://[^)]*" + re.escape(ref_domain) + r"[^)]*\)",
                 full_summary or "",
                 flags=re.IGNORECASE
             ))
-            if not already_contains_url and not already_linked_domain:
+            if not (already_contains_ref or already_linked_same_domain):
                 if ref_domain.endswith("aidsinfo.unaids.org"):
-                    prefix = "\n\nHIV estimates broken down by age and gender. (right here)\n\n"
-                    link_md = _md_link(ref_url, ref_url)
+                    prefix = "\n\nFor the most current official prevalence statistics, see "
+                    link_md = _md_link(ref_url, "UNAIDS AIDSinfo")
                 else:
-                    prefix = "\n\n"
+                    prefix = "\n\nYou can also check the official source here: "
                     link_md = _md_link(ref_url, _title_for_url(ref_url))
                 _send_ws(connection_id, {
                     "type": "delta",
