@@ -22,45 +22,34 @@ function BotReply({ message, name = 'Tobi' }) {
   const handleUp = () => console.log('Thumbs up clicked');
   const handleDown = () => console.log('Thumbs down clicked');
 
-  // Shared text wrapping styles so nothing overflows horizontally
   const textStyles = {
-    whiteSpace: 'pre-wrap',        // keep newlines, allow wrapping
-    overflowWrap: 'anywhere',      // break long URLs/tokens
-    wordBreak: 'break-word',       // fallback
-    '& pre': {                     // markdown code blocks
-      whiteSpace: 'pre-wrap',
-      overflowX: 'auto',
-      maxWidth: '100%',
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'anywhere',
+    wordBreak: 'break-word',
+    maxWidth: { xs: '85%', md: '70%' }, // align with user bubble width
+    // Link styling (visited/unvisited same color + dotted underline)
+    '& a, & a:visited': {
+      color: 'inherit',
+      textDecoration: 'none',
+      borderBottom: '1px dotted currentColor',
     },
-    '& code': {
-      wordBreak: 'break-word',
+    '& a:hover, & a:focus': {
+      borderBottomStyle: 'solid',
+      outline: 'none',
     },
-    '& a': {
-      wordBreak: 'break-all',
-    },
-    '& table': {                   // wide tables scroll instead of overflow
-      display: 'block',
-      width: '100%',
-      overflowX: 'auto',
-    },
-    '& img, & video': {            // responsive media
-      maxWidth: '100%',
-      height: 'auto',
-    },
-    '& > p': { margin: 0 },        // tighten default p spacing if desired
+    // Markdown safety
+    '& pre': { whiteSpace: 'pre-wrap', overflowX: 'auto', maxWidth: '100%' },
+    '& code': { wordBreak: 'break-word' },
+    '& table': { display: 'block', width: '100%', overflowX: 'auto' },
+    '& img, & video': { maxWidth: '100%', height: 'auto' },
+    '& > p': { margin: 0 },
   };
 
   return (
     <Grid container direction="row" justifyContent="flex-start" alignItems="flex-start">
-      <Grid
-        item
-        xs
-        // minWidth: 0 is crucial so this flex child can shrink within the row
-        sx={{ minWidth: 0, maxWidth: '100%' }}
-      >
-        {/* No bubble background for bot; constrain width like the user bubble */}
-        <Box sx={{ p: 0, maxWidth: { xs: '85%', md: '70%' } }}>
-          {/* Message body */}
+      <Grid item xs sx={{ minWidth: 0, maxWidth: '100%' }}>
+        {/* No bubble for bot; constrain width and ensure wrapping */}
+        <Box sx={{ p: 0 }}>
           <Box sx={{ mt: 1 }}>
             {ALLOW_MARKDOWN_BOT ? (
               <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR} sx={textStyles}>
@@ -74,7 +63,7 @@ function BotReply({ message, name = 'Tobi' }) {
           </Box>
         </Box>
 
-        {/* Actions row (under text, left-aligned) */}
+        {/* Actions row */}
         <Box sx={{ mt: 0.5, display: 'flex', justifyContent: 'flex-start', gap: 0.5 }}>
           <Tooltip title={copied ? 'Copied' : 'Copy'}>
             <IconButton size="small" onClick={handleCopy} aria-label="Copy message">

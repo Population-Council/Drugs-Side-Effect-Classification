@@ -131,42 +131,27 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
                 pl: 0.5,
               }}
             >
-              {/* Dot 1 */}
-              <Box
-                sx={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: "50%",
-                  bgcolor: (t) => t.palette.text.primary,
-                  animation: `${bounce} 1.2s infinite ease-in-out`,
-                  animationDelay: "0s",
-                  "@media (prefers-reduced-motion: reduce)": { animation: "none" },
-                }}
-              />
-              {/* Dot 2 */}
-              <Box
-                sx={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: "50%",
-                  bgcolor: (t) => t.palette.text.primary,
-                  animation: `${bounce} 1.2s infinite ease-in-out`,
-                  animationDelay: "0.15s",
-                  "@media (prefers-reduced-motion: reduce)": { animation: "none" },
-                }}
-              />
-              {/* Dot 3 */}
-              <Box
-                sx={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: "50%",
-                  bgcolor: (t) => t.palette.text.primary,
-                  animation: `${bounce} 1.2s infinite ease-in-out`,
-                  animationDelay: "0.3s",
-                  "@media (prefers-reduced-motion: reduce)": { animation: "none" },
-                }}
-              />
+              <Box sx={{
+                width: 10, height: 10, borderRadius: "50%",
+                bgcolor: (t) => t.palette.text.primary,
+                animation: `${bounce} 1.2s infinite ease-in-out`,
+                animationDelay: "0s",
+                "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+              }} />
+              <Box sx={{
+                width: 10, height: 10, borderRadius: "50%",
+                bgcolor: (t) => t.palette.text.primary,
+                animation: `${bounce} 1.2s infinite ease-in-out`,
+                animationDelay: "0.15s",
+                "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+              }} />
+              <Box sx={{
+                width: 10, height: 10, borderRadius: "50%",
+                bgcolor: (t) => t.palette.text.primary,
+                animation: `${bounce} 1.2s infinite ease-in-out`,
+                animationDelay: "0.3s",
+                "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+              }} />
             </Box>
           </Grid>
         </Grid>
@@ -177,11 +162,27 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
   if (!currentStreamText) return null;
 
   const textStyles = {
-    whiteSpace: "pre-wrap",        // keep newlines, allow wrapping
-    overflowWrap: "anywhere",      // break long URLs/tokens
-    wordBreak: "break-word",       // fallback
-    pr: 4,                         // space for the copy button
-    maxWidth: { xs: "85%", md: "70%" }, // align with user bubble width if desired
+    whiteSpace: "pre-wrap",
+    overflowWrap: "anywhere",
+    wordBreak: "break-word",
+    pr: 4,                                  // space for the copy button
+    maxWidth: { xs: "85%", md: "70%" },     // align with user bubble width
+    // Link styling (visited/unvisited same color + dotted underline)
+    "& a, & a:visited": {
+      color: "inherit",
+      textDecoration: "none",
+      borderBottom: "1px dotted currentColor",
+    },
+    "& a:hover, & a:focus": {
+      borderBottomStyle: "solid",
+      outline: "none",
+    },
+    // Markdown safety
+    "& pre": { whiteSpace: "pre-wrap", overflowX: "auto", maxWidth: "100%" },
+    "& code": { wordBreak: "break-word" },
+    "& table": { display: "block", width: "100%", overflowX: "auto" },
+    "& img, & video": { maxWidth: "100%", height: "auto" },
+    "& > p": { margin: 0 },
   };
 
   return (
