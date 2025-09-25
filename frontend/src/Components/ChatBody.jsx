@@ -25,7 +25,7 @@ import BotReply from './BotReply';
 import { useRole } from '../contexts/RoleContext';
 
 // -------------------- DEV TOGGLE --------------------
-const DEV_SHOW_TEST_MESSAGE = false;
+const DEV_SHOW_TEST_MESSAGE = true;
 // ---------------------------------------------------
 
 const TOBI_GREETING_MD = `**Hi — I’m Tobi.** I’m your virtual assistant for **SSLN & I2I**.
