@@ -113,9 +113,8 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
             sx={{
               position: "relative",
               mt: 1,
-              minWidth: "50px",
-              maxWidth: "calc(100% - 50px)",
-              wordWrap: "break-word",
+              minWidth: 0,          // allow shrink in flex row
+              width: "100%",
               minHeight: "40px",
             }}
           >
@@ -177,6 +176,14 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
 
   if (!currentStreamText) return null;
 
+  const textStyles = {
+    whiteSpace: "pre-wrap",        // keep newlines, allow wrapping
+    overflowWrap: "anywhere",      // break long URLs/tokens
+    wordBreak: "break-word",       // fallback
+    pr: 4,                         // space for the copy button
+    maxWidth: { xs: "85%", md: "70%" }, // align with user bubble width if desired
+  };
+
   return (
     <Box sx={{ width: "100%" }}>
       <Grid
@@ -193,9 +200,8 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
           sx={{
             position: "relative",
             mt: 1,
-            minWidth: "50px",
-            maxWidth: "calc(100% - 50px)",
-            wordWrap: "break-word",
+            minWidth: 0,          // CRUCIAL: let flex child shrink
+            width: "100%",
             minHeight: "40px",
           }}
         >
@@ -212,16 +218,11 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
           )}
 
           {ALLOW_MARKDOWN_BOT ? (
-            <Typography
-              variant="body2"
-              component="div"
-              color={BOTMESSAGE_TEXT_COLOR}
-              sx={{ "& > p": { margin: 0 } }}
-            >
+            <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR} sx={textStyles}>
               <ReactMarkdown>{currentStreamText || "\u00A0"}</ReactMarkdown>
             </Typography>
           ) : (
-            <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR}>
+            <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR} sx={textStyles}>
               {currentStreamText || "\u00A0"}
             </Typography>
           )}

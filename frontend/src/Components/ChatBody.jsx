@@ -48,29 +48,31 @@ function UserReply({ message }) {
         className="userMessage"
         sx={{
           backgroundColor: (theme) => theme.palette.background.userMessage,
-          color: USERMESSAGE_TEXT_COLOR, 
-          // ↑↑ More comfortable padding (y increased)
-          px: 3,                 // = 24px
-          py: 2.25,              // = 18px
-          // ↑↑ Extra rounded corners
-          borderRadius: '9999px', // full pill
-          // Keep content sizing clean
+          color: '#5d5d5d',            // or USERMESSAGE_TEXT_COLOR
+          px: 3.5,                     // a bit more side padding
+          py: 2.75,                    // ↑ taller = rounder
+          borderRadius: '9999px',      // full pill
           width: 'fit-content',
-          maxWidth: '85%',
+          maxWidth: { xs: '80%', md: '65%' }, // keep it from getting too wide
           wordWrap: 'break-word',
           overflowWrap: 'anywhere',
           mt: 1.5,
-          fontFamily: 'Arial, Helvetica, sans-serif',
-          boxShadow: (theme) =>
-            `0 1px 2px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.06)`,
+          fontFamily: 'inherit',
+          lineHeight: 1.45,            // helps maintain pill shape with text
+          // ensure children never clip the rounded corners
+          overflow: 'hidden',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
         }}
       >
         <Typography
           variant="body2"
           sx={{
-            fontFamily: 'inherit',
-            lineHeight: 1.5,     // a touch more line height for legibility
-            m: 0,                 // remove default margins
+            m: 0,
+            lineHeight: 1.45,
+            // prevent long tokens from flattening the shape
+            whiteSpace: 'pre-wrap',
+            overflowWrap: 'anywhere',
+            wordBreak: 'break-word',
           }}
         >
           {message}
@@ -218,7 +220,7 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
           overflowY: 'auto',
           overflowX: 'hidden',
           mb: 1,
-          px: { xs: 2, md: 3 },
+          px: { xs: 3, md: 5, lg: 8 },
           pt: `${CHAT_TOP_SPACING}px`,
           '&::-webkit-scrollbar': { width: '6px' },
           '&::-webkit-scrollbar-track': { background: '#f1f1f1' },
