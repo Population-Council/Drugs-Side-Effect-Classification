@@ -1,4 +1,3 @@
-// src/Components/BotReply.jsx
 import React, { useState } from 'react';
 import { Grid, Box, Typography, IconButton, Tooltip } from '@mui/material';
 import { FiCopy, FiThumbsUp, FiCheck } from 'react-icons/fi';
@@ -22,48 +21,52 @@ function BotReply({ message, name = 'Tobi' }) {
   const handleUp = () => console.log('Thumbs up clicked');
   const handleDown = () => console.log('Thumbs down clicked');
 
-  const textStyles = {
-    whiteSpace: 'pre-wrap',
+  // For Markdown: let markdown control spacing; tighten margins
+  const markdownStyles = {
+    whiteSpace: 'normal',                // <— key change (no pre-wrap)
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
-    maxWidth: { xs: '85%', md: '70%' }, // align with user bubble width
-    // Link styling (visited/unvisited same color + dotted underline)
-    '& a, & a:visited': {
-      color: 'inherit',
-      textDecoration: 'none',
-      borderBottom: '1px dotted currentColor',
-    },
-    '& a:hover, & a:focus': {
-      borderBottomStyle: 'solid',
-      outline: 'none',
-    },
-    // Markdown safety
-    '& pre': { whiteSpace: 'pre-wrap', overflowX: 'auto', maxWidth: '100%' },
+    maxWidth: { xs: '85%', md: '70%' },
+    '& p': { margin: '0 0 0.5rem 0' },
+    '& ul, & ol': { margin: '0.25rem 0 0.5rem 1.25rem', paddingLeft: '1.25rem' },
+    '& li': { margin: '0.15rem 0' },
+    // links
+    '& a, & a:visited': { color: 'inherit', textDecoration: 'none', borderBottom: '1px dotted currentColor' },
+    '& a:hover, & a:focus': { borderBottomStyle: 'solid', outline: 'none' },
+    // code/media
+    '& pre': { whiteSpace: 'pre', overflowX: 'auto', maxWidth: '100%', margin: '0.25rem 0' },
     '& code': { wordBreak: 'break-word' },
     '& table': { display: 'block', width: '100%', overflowX: 'auto' },
     '& img, & video': { maxWidth: '100%', height: 'auto' },
-    '& > p': { margin: 0 },
+  };
+
+  // For plain text (non-markdown): preserve explicit newlines
+  const plainTextStyles = {
+    whiteSpace: 'pre-wrap',
+    overflowWrap: 'anywhere',
+    wordBreak: 'break-word',
+    maxWidth: { xs: '85%', md: '70%' },
+    '& a, & a:visited': { color: 'inherit', textDecoration: 'none', borderBottom: '1px dotted currentColor' },
+    '& a:hover, & a:focus': { borderBottomStyle: 'solid', outline: 'none' },
   };
 
   return (
     <Grid container direction="row" justifyContent="flex-start" alignItems="flex-start">
       <Grid item xs sx={{ minWidth: 0, maxWidth: '100%' }}>
-        {/* No bubble for bot; constrain width and ensure wrapping */}
         <Box sx={{ p: 0 }}>
           <Box sx={{ mt: 1 }}>
             {ALLOW_MARKDOWN_BOT ? (
-              <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR} sx={textStyles}>
+              <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR} sx={markdownStyles}>
                 <ReactMarkdown>{message || ''}</ReactMarkdown>
               </Typography>
             ) : (
-              <Typography variant="body2" color={BOTMESSAGE_TEXT_COLOR} sx={textStyles}>
+              <Typography variant="body2" color={BOTMESSAGE_TEXT_COLOR} sx={plainTextStyles}>
                 {message || ''}
               </Typography>
             )}
           </Box>
         </Box>
 
-        {/* Actions row */}
         <Box sx={{ mt: 0.5, display: 'flex', justifyContent: 'flex-start', gap: 0.5 }}>
           <Tooltip title={copied ? 'Copied' : 'Copy'}>
             <IconButton size="small" onClick={handleCopy} aria-label="Copy message">
