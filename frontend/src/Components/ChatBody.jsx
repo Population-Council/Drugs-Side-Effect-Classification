@@ -55,14 +55,14 @@ function UserReply({ message }) {
           color: USERMESSAGE_TEXT_COLOR || '#5d5d5d',
 
           // Visual clarity
-          boxShadow: '0 6px 24px rgba(0,0,0,0.12)',
+          // boxShadow: '0 6px 24px rgba(0,0,0,0.12)',
           border: '1px solid rgba(0,0,0,0.06)',
           overflow: 'hidden',
           mt: 2,
         }}
       >
         {/* Inner padding wrapper to guarantee symmetric padding */}
-        <Box sx={{ px: { xs: 2, md: 4 }, py: { xs: 2, md: 2 } }}>
+        <Box sx={{ px: { xs: 2, md: 4 }, py: { xs: 1, md: 1 } }}>
           <Typography
             variant="body1"
             sx={{
