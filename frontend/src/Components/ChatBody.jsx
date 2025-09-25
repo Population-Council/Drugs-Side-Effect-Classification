@@ -36,31 +36,30 @@ Ask me anything to get started. Type **/help** for tips.`;
 
 function UserReply({ message }) {
   return (
-    <Grid
-      container
-      direction="row"
-      justifyContent="flex-end"
-      alignItems="flex-start"
-      spacing={1}
-    >
+    <Grid container direction="row" justifyContent="flex-end" alignItems="flex-start" spacing={1}>
       <Grid
         item
         className="userMessage"
         sx={{
-          backgroundColor: (theme) => theme.palette.background.userMessage,
-          color: '#5d5d5d',            // or USERMESSAGE_TEXT_COLOR
-          px: 3.5,                     // a bit more side padding
-          py: 2.75,                    // ↑ taller = rounder
-          borderRadius: '9999px',      // full pill
+          backgroundColor: (theme) => theme.palette.background.userMessage, // #FCF1F2
+          color: '#5d5d5d',
+          // --- Make it rounder & give breathing room on the x-axis ---
+          px: 4.5,                 // was 3  → more horizontal padding
+          py: 3,                   // was 2.25 → taller = rounder
+          minHeight: 44,           // ensures pill height even for short text
+          display: 'inline-flex',  // center text vertically inside the pill
+          alignItems: 'center',
+
+          borderRadius: '9999px',
           width: 'fit-content',
-          maxWidth: { xs: '80%', md: '65%' }, // keep it from getting too wide
+          maxWidth: { xs: '78%', md: '60%' }, // slightly narrower so it looks rounder
+          overflow: 'hidden',
+
+          // text safety
           wordWrap: 'break-word',
           overflowWrap: 'anywhere',
           mt: 1.5,
           fontFamily: 'inherit',
-          lineHeight: 1.45,            // helps maintain pill shape with text
-          // ensure children never clip the rounded corners
-          overflow: 'hidden',
           boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
         }}
       >
@@ -69,7 +68,6 @@ function UserReply({ message }) {
           sx={{
             m: 0,
             lineHeight: 1.45,
-            // prevent long tokens from flattening the shape
             whiteSpace: 'pre-wrap',
             overflowWrap: 'anywhere',
             wordBreak: 'break-word',
