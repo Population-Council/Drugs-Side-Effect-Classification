@@ -25,6 +25,8 @@ export const BOTMESSAGE_TEXT_COLOR = "#5D5D5D";     // <— changed from #000000
 export const USERMESSAGE_BACKGROUND = "#FCF1F2"; // User bubble background
 export const USERMESSAGE_TEXT_COLOR = "#5D5D5D";       // <— changed from #FFFFFF to red
 
+export const SIDE_GUTTER = { xs: 3, sm: 2, md: 6, lg: 16 }; // tweak as you like
+
 // --------------------------------------------------------------------------------------------------------//
 // Text Constants
 export const TEXT = {
