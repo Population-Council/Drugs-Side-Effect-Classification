@@ -1,6 +1,6 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { useCookies } from 'react-cookie';
-import { Box, Grid, Typography } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import Attachment from './Attachment';
 import ChatInput from './ChatInput';
 import StreamingResponse from './StreamingResponse';
@@ -13,7 +13,7 @@ import {
   WEBSOCKET_API,
   ALLOW_CHAT_HISTORY,
   CHAT_TOP_SPACING,
-  SIDE_GUTTER, // <-- NEW: shared gutters
+  SIDE_GUTTER,
 } from '../utilities/constants';
 import BotFileCheckReply from './BotFileCheckReply';
 import SpeechRecognitionComponent from './SpeechRecognition';
@@ -25,7 +25,7 @@ import BotReply from './BotReply';
 import { useRole } from '../contexts/RoleContext';
 
 // -------------------- DEV TOGGLE --------------------
-const DEV_SHOW_TEST_MESSAGE = true;
+const DEV_SHOW_TEST_MESSAGE = false; // set true if you want the test pill shown
 // ---------------------------------------------------
 
 const TOBI_GREETING_MD = `**Hi — I’m Tobi.** I’m your virtual assistant for **SSLN & I2I**.
@@ -38,51 +38,48 @@ I can help you:
 
 Ask me anything to get started. Type **/help** for tips.`;
 
+// *** New: robust user bubble that can't look lopsided ***
 function UserReply({ message }) {
   return (
-    <Grid container direction="row" justifyContent="flex-end" alignItems="flex-start" spacing={0}>
-      <Grid
-        item
+    <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <Box
         className="userMessage"
         sx={{
-          backgroundColor: (theme) => theme.palette.background.userMessage, // #FCF1F2
-          color: '#5d5d5d',
-
-          // Rounder pill shape & breathing room
-          px: 4.5,
-          py: 3,
-          minHeight: 44,
-          display: 'inline-flex',
-          alignItems: 'center',
-
-          borderRadius: '9999px',
+          display: 'inline-block',
           width: 'fit-content',
           maxWidth: { xs: '78%', md: '60%' },
-          overflow: 'hidden',
 
-          // text safety
-          wordWrap: 'break-word',
-          overflowWrap: 'anywhere',
-          mt: 1.5,
-          fontFamily: 'inherit',
-          boxShadow: '0 2px 10px rgba(0,0,0,0.08)',
+          // Perfect pill
+          borderRadius: '9999px',
+          bgcolor: (t) => t.palette.background.userMessage || '#FCF1F2',
+          color: USERMESSAGE_TEXT_COLOR || '#5d5d5d',
+
+          // Visual clarity
+          boxShadow: '0 6px 24px rgba(0,0,0,0.12)',
+          border: '1px solid rgba(0,0,0,0.06)',
+          overflow: 'hidden',
+          mt: 2,
         }}
       >
-        <Typography
-          variant="body2"
-          sx={{
-            m: 0,
-            lineHeight: 1.45,
-            whiteSpace: 'pre-wrap',
-            overflowWrap: 'anywhere',
-            wordBreak: 'break-word',
-            color: USERMESSAGE_TEXT_COLOR || '#5d5d5d',
-          }}
-        >
-          {message}
-        </Typography>
-      </Grid>
-    </Grid>
+        {/* Inner padding wrapper to guarantee symmetric padding */}
+        <Box sx={{ px: { xs: 6, md: 8 }, py: { xs: 4, md: 5 } }}>
+          <Typography
+            variant="body1"
+            sx={{
+              m: 0,
+              lineHeight: 1.5,
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              overflowWrap: 'anywhere',
+              color: 'inherit',
+              display: 'block',
+            }}
+          >
+            {message}
+          </Typography>
+        </Box>
+      </Box>
+    </Box>
   );
 }
 
@@ -224,7 +221,7 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
           overflowY: 'auto',
           overflowX: 'hidden',
           mb: 1,
-          px: SIDE_GUTTER,            // <-- unified gutters here
+          px: SIDE_GUTTER,            // unified gutters
           pt: `${CHAT_TOP_SPACING}px`,
           '&::-webkit-scrollbar': { width: '6px' },
           '&::-webkit-scrollbar-track': { background: '#f1f1f1' },
@@ -271,7 +268,7 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
           flexShrink: 0,
           alignItems: 'flex-end',
           py: 1,
-          px: SIDE_GUTTER,           // <-- unified gutters here
+          px: SIDE_GUTTER,           // unified gutters
           borderTop: (theme) => `1px solid ${theme.palette.divider}`,
         }}
       >
