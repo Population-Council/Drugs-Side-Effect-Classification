@@ -88,14 +88,15 @@ function MainApp() {
     >
       {/* Header with background image */}
       <Box 
-        sx={{ 
-          height: '20%',
-          position: 'relative',
-          backgroundImage: `url(${headerBg})`,
-          backgroundSize: 'cover',
-          backgroundPosition: 'center',
-          backgroundRepeat: 'no-repeat'
-        }}
+      sx={{
+    /* Never smaller than 80px, never larger than 148px, scales with viewport */
+    height: 'clamp(80px, 12vh, 148px)',
+    position: 'relative',
+    backgroundImage: `url(${headerBg})`,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundRepeat: 'no-repeat',
+  }}
       > 
         <AppHeader showSwitch={true} />
       </Box>
@@ -111,27 +112,7 @@ function MainApp() {
           minHeight: 0
         }}
       >
-        {/* Left Navigation (kept commented per your code) */}
-        {/* {(showLeftNav || !isMobile) && (
-          <Box 
-            sx={{ 
-              width: showLeftNav ? (isMobile ? '100%' : `${(leftNavSize/12)*100}%`) : '40px',
-              position: isMobile ? 'absolute' : 'relative',
-              zIndex: isMobile ? 1100 : 1,
-              display: isMobile && !showLeftNav ? 'none' : 'block',
-              height: '100%',
-              overflow: 'hidden'
-            }}
-          >
-            <LeftNav 
-              showLeftNav={showLeftNav} 
-              setLeftNav={setLeftNav}   
-              uploadedFile={uploadedFile} 
-              fileType={fileType} 
-            />
-          </Box>
-        )} */}
-        
+  
         {/* Chat Area */}
         <Box 
           sx={{

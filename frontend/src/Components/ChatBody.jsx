@@ -48,14 +48,20 @@ function UserReply({ message }) {
         className="userMessage"
         sx={{
           backgroundColor: (theme) => theme.palette.background.userMessage,
-          color: '#fff',                      // white text
-          padding: '16px 22px',              // a bit more padding
-          borderRadius: '9999px',            // extra-round pill
-          maxWidth: '85%',                   // gives the bubble more breathing room
+          color: USERMESSAGE_TEXT_COLOR, 
+          // ↑↑ More comfortable padding (y increased)
+          px: 3,                 // = 24px
+          py: 2.25,              // = 18px
+          // ↑↑ Extra rounded corners
+          borderRadius: '9999px', // full pill
+          // Keep content sizing clean
+          width: 'fit-content',
+          maxWidth: '85%',
           wordWrap: 'break-word',
-          mt: 1.25,                          // slightly more top margin for separation
+          overflowWrap: 'anywhere',
+          mt: 1.5,
           fontFamily: 'Arial, Helvetica, sans-serif',
-          boxShadow: (theme) =>             // subtle lift so the white text reads clearly
+          boxShadow: (theme) =>
             `0 1px 2px rgba(0,0,0,0.06), 0 4px 12px rgba(0,0,0,0.06)`,
         }}
       >
@@ -63,7 +69,8 @@ function UserReply({ message }) {
           variant="body2"
           sx={{
             fontFamily: 'inherit',
-            lineHeight: 1.45,
+            lineHeight: 1.5,     // a touch more line height for legibility
+            m: 0,                 // remove default margins
           }}
         >
           {message}
@@ -72,6 +79,7 @@ function UserReply({ message }) {
     </Grid>
   );
 }
+
 function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
   const { messageList, addMessage } = useMessage();
   const { questionAsked, setQuestionAsked } = useQuestion();

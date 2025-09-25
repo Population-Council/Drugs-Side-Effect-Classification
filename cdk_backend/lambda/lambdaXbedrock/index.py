@@ -1,5 +1,3 @@
-# index.py
-
 import os
 import json
 import boto3
@@ -180,7 +178,6 @@ def _title_for_url(url: str) -> str:
         return path_last.title()
     if host:
         parts = host.split(".")
-        # Keep last 3 tokens for ccTLD public-suffix patterns like *.co.ug, *.ac.uk, *.go.ug, etc.
         public_suffix_2nd = {"co", "ac", "go", "or", "gov", "edu"}
         if len(parts) >= 3 and parts[-2] in public_suffix_2nd:
             return ".".join(parts[-3:])
@@ -191,17 +188,13 @@ def _title_for_url(url: str) -> str:
 
 
 # ---------- URL detection & linkification ----------
-# Matches ANY url (used for scans/extraction)
 _ANY_URL_RE = re.compile(r"https?://[^\s)>\]]+", re.IGNORECASE)
-
-# Matches only bare urls (not already inside markdown link), excluding parentheses and common trailing punctuation.
 _BARE_URL_RE = re.compile(
     r"(?<!\]\()(https?://[^\s<>\[\]{}()'\"`]+)(?=$|\s|[>),.;:!?])",
     re.IGNORECASE,
 )
 
 def _linkify_bare_urls(text: str) -> str:
-    """Turn bare URLs into Markdown links, leaving existing [label](url) alone."""
     if not text:
         return text
 
@@ -213,6 +206,94 @@ def _linkify_bare_urls(text: str) -> str:
             return _md_link(url)
 
     return _BARE_URL_RE.sub(_repl, text)
+
+
+# ---------- EMPHASIZE ONLY STATS/NUMBERS (outside links) ----------
+_LINK_BLOCK_RE = re.compile(r"\[[^\]]+\]\([^)]+\)")
+
+# percentages like 2%, 12.5%, 1,234.5%
+_PERCENT_RE = re.compile(r"\b\d{1,3}(?:,\d{3})*(?:\.\d+)?%")
+
+# chains like 95-95-95 or 2000–2023 (2 or more numbers separated by - or –)
+_CHAIN_RE = re.compile(
+    r"\b(\d{1,4}(?:,\d{3})*(?:\.\d+)?)"
+    r"((?:\s*[–-]\s*\d{1,4}(?:,\d{3})*(?:\.\d+)?){1,})\b"
+)
+
+# standalone numbers (ints/decimals with optional commas)
+_NUMBER_RE = re.compile(r"\b\d{1,3}(?:,\d{3})*(?:\.\d+)?\b")
+
+def _wrap_bold(s: str) -> str:
+    return f"**{s}**"
+
+def _emphasize_stats(text: str) -> str:
+    """
+    Bold only numbers/stats:
+      - Percentages (e.g., 72%, 1.2%)
+      - Number chains (95-95-95, 2000–2023) → **95**-**95**-**95**
+      - Standalone numbers (1,234, 1.2)
+    Never modify inside [label](url). Avoid double bold.
+    """
+    if not text:
+        return text
+
+    parts = _LINK_BLOCK_RE.split(text)
+    links = _LINK_BLOCK_RE.findall(text)
+    out = []
+
+    def process(seg: str) -> str:
+        # 1) bold number chains safely by rebuilding the chain
+        def repl_chain(m: re.Match) -> str:
+            first = m.group(1)
+            rest = m.group(2)
+            # Split rest by separators, preserving separators
+            pieces = re.split(r"([–-])", rest)
+            # pieces starts with separator or number depending on split; normalize
+            rebuilt = [_wrap_bold(first)]
+            i = 0
+            while i < len(pieces):
+                token = pieces[i]
+                if token in ("-", "–"):
+                    # next should be number (possibly with surrounding spaces removed)
+                    num_raw = pieces[i+1] if i+1 < len(pieces) else ""
+                    num_clean = num_raw.strip()
+                    rebuilt.append(token)
+                    if num_clean:
+                        rebuilt.append(_wrap_bold(num_clean))
+                    i += 2
+                else:
+                    i += 1
+            return "".join(rebuilt)
+
+        seg = _CHAIN_RE.sub(repl_chain, seg)
+
+        # 2) bold percentages
+        seg = _PERCENT_RE.sub(lambda m: _wrap_bold(m.group(0)), seg)
+
+        # 3) bold standalone numbers (skip ones already bolded)
+        tmp = []
+        cursor = 0
+        for m in _NUMBER_RE.finditer(seg):
+            start, end = m.start(), m.end()
+            # guard: don't bold if immediately inside/adjacent to **
+            before = seg[max(0, start-2):start]
+            after = seg[end:end+2]
+            if "**" in before or "**" in after:
+                tmp.append(seg[cursor:end])
+                cursor = end
+                continue
+            tmp.append(seg[cursor:start])
+            tmp.append(_wrap_bold(m.group(0)))
+            cursor = end
+        tmp.append(seg[cursor:])
+        return "".join(tmp)
+
+    for i, seg in enumerate(parts):
+        out.append(process(seg))
+        if i < len(links):
+            out.append(links[i])
+
+    return "".join(out)
 
 
 # ---------- Suggested reference picking ----------
@@ -231,10 +312,6 @@ def _url_tokens(u: str) -> set[str]:
 
 
 def _pick_reference_url(prompt: str) -> str | None:
-    """
-    Choose the best 'one site to suggest' link. Prefer UNAIDS AIDSinfo for prevalence/estimates queries.
-    """
-    # Defensive default list if constants.REFERENCE_URLS is missing/empty
     ref_list = REFERENCE_URLS if (REFERENCE_URLS and isinstance(REFERENCE_URLS, (list, tuple))) else [
         "https://aidsinfo.unaids.org/",
         "https://www.who.int/data/gho",
@@ -244,14 +321,12 @@ def _pick_reference_url(prompt: str) -> str | None:
         return None
 
     q = _tokenize(prompt)
-    # Lightweight intent signal → strongly prefer UNAIDS
     prefers_unaids = any(t in q for t in {"prevalence", "estimate", "estimates", "hiv", "incidence", "ghana"})
 
     best_url, best_score = None, -1
     for u in ref_list:
         toks = _url_tokens(u)
         score = sum(1 for t in toks if t in q)
-        # Heavier weight for UNAIDS when intent matches
         if "unaids" in toks or "aidsinfo" in toks:
             score += (5 if prefers_unaids else 3)
         if "who" in toks:
@@ -598,7 +673,6 @@ def _gen_relevance_reasons_via_model(user_prompt: str, doc_snips: dict) -> dict:
 
 # --- Lead-in generators for the “Sources at a glance” block ---
 def _gen_sources_leadin_via_model(user_prompt: str) -> str:
-    """ Model-chosen one-line statement inviting the user to check more resources. """
     system_text = (
         "Write a short, friendly, ONE-LINE STATEMENT that introduces additional resources "
         "the user might want to check. Avoid emojis and salesy tone. 6–14 words. "
@@ -654,6 +728,56 @@ def _pick_sources_leadin(user_prompt: str) -> str:
         return _random_sources_leadin()
 
 
+# ---------- Varied, context-aware follow-up ----------
+def _pick_follow_up(user_prompt: str, *, has_ref_site: bool, has_sources: bool, mode: str = "talk") -> str:
+    """
+    Returns a short, varied follow-up line tailored to the context.
+    - has_ref_site: we suggested a specific site/tool link
+    - has_sources: we attached sources/snippets
+    - mode: "summary" (PDF/doc summarization flow) or "talk" (normal Q&A)
+    Avoids phrasing like 'pull/extract numbers'; uses 'concise summary of the data' instead.
+    """
+    q = (_norm(user_prompt) or "")
+    wants_how = any(t in q for t in ["how do i", "how to", "navigate", "where do i find", "use the site"])
+    wants_numbers = any(t in q for t in ["prevalence", "incidence", "rate", "estimate", "trend", "number", "count", "data", "stats"])
+
+    lines_site = [
+        "Want a quick tour of the site, or a concise summary of the data?",
+        "Prefer a navigation guide to that tool, or a concise data brief?",
+        "Should I show you how to use the site, or give a concise summary of the data?",
+        "Would a walkthrough of the site help, or a concise summary of the data?",
+        "Do you want a step-through of the site, or a concise data overview?",
+        "Shall I explain the site’s key features, or provide a concise summary of the data?",
+    ]
+    lines_summary = [
+        "Want a quick summary or a step-by-step walkthrough?",
+        "Prefer a concise brief or a deeper guided walkthrough?",
+        "Would you like a short summary or an in-depth explanation?",
+        "Should I keep it brief, or walk you through it step by step?",
+        "Want a high-level summary or a detailed walkthrough?",
+        "Prefer a concise recap or a structured, step-by-step guide?",
+    ]
+    lines_data = [
+        "Should I summarize the data, or focus on explaining the trends?",
+        "Want just the headline figures, or the context behind them?",
+        "Prefer the key numbers, or what they mean for decisions?",
+        "Do you want the topline stats, or a deeper interpretation?",
+        "Shall I give a concise summary of the data, or unpack the drivers?",
+        "Would you like the main figures, or an explanation of the implications?",
+    ]
+
+    if has_ref_site and (wants_how or not wants_numbers):
+        return random.choice(lines_site)
+    if wants_numbers:
+        return random.choice(lines_data)
+
+    if mode == "summary":
+        return random.choice(lines_summary)
+    if has_sources:
+        return random.choice(lines_summary)
+    return "Want a quick summary or a step-by-step walkthrough?"
+
+
 # ---------- URL detection (history) ----------
 def _extract_first_url_from_history(history_raw) -> str | None:
     for it in reversed(history_raw or []):
@@ -694,19 +818,14 @@ def _stream_summary_from_chunks(connection_id: str, prompt: str, doc_url: str, h
 
     user_text = (
         "You will summarize an official PDF. Use ONLY the provided snippets; do not invent facts. "
-        "Write a concise, structured brief with:\n"
-        "• Purpose & scope\n"
-        "• Key recommendations / policies\n"
-        "• Priority populations & service delivery\n"
-        "• Testing, treatment & prevention highlights\n"
-        "• Any dates/versions that matter\n"
-        "Keep it clear and bulleted. If something is unclear, say so.\n\n"
+        "Write a clear, paragraph-style summary (3–6 sentences) in plain English. "
+        "Do NOT include a title, headings, or bullet points—just narrative prose. "
+        "If something is unclear, say so briefly.\n\n"
         f"<doc_url>{doc_url}</doc_url>\n"
         "<knowledge_snippets>\n"
         f"{kb_text}\n"
         "</knowledge_snippets>\n\n"
         f"User request: {prompt}"
-        
     )
     messages: list[dict] = []
     if history_messages:
@@ -726,18 +845,19 @@ def _stream_summary_from_chunks(connection_id: str, prompt: str, doc_url: str, h
         _end_with_error(connection_id, "Model stream not available.", 500)
         return
 
-    # --- streaming with inline linkification ---
+    # --- streaming with inline linkification + stat emphasis ---
     pending = ""
+    TAIL = 200  # keep a larger tail so we don't split numbers/percentages across chunks
     for ev in stream:
         if "contentBlockDelta" in ev:
             delta = (ev["contentBlockDelta"].get("delta") or {}).get("text") or ""
             pending += delta
-            # Flush a "safe" portion (leave a tail so we don't cut through a URL)
-            if len(pending) > 400 or "\n" in delta:
-                safe = pending[:-80]
-                pending = pending[-80:]
+            if len(pending) > 600 or "\n" in delta:
+                safe = pending[:-TAIL]
+                pending = pending[-TAIL:]
                 if safe:
                     safe = _linkify_bare_urls(safe)
+                    safe = _emphasize_stats(safe)
                     _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": safe})
         elif "messageStop" in ev:
             break
@@ -751,12 +871,12 @@ def _stream_summary_from_chunks(connection_id: str, prompt: str, doc_url: str, h
 
     if pending:
         tail = _linkify_bare_urls(pending)
+        tail = _emphasize_stats(tail)
         _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": tail})
 
-    # Add a consistent follow-up prompt after the summary
     try:
-        follow_up = "\n\nWould you like me to give you a brief summary of these documents or a step-by-step walkthrough?\n"
-        _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": follow_up})
+        follow_up = _pick_follow_up(prompt, has_ref_site=False, has_sources=bool(kb_sources), mode="summary")
+        _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": f"\n\n{follow_up}\n"})
     except Exception as e:
         logger.warning(f"Failed to append follow-up after summary: {e}")
 
@@ -767,11 +887,11 @@ def _stream_summary_from_chunks(connection_id: str, prompt: str, doc_url: str, h
 def _send_ws(connection_id: str, payload: dict):
     if not ws:
         logger.error("WebSocket client not configured (URL env missing).")
-        return
-    try:
-        ws.post_to_connection(ConnectionId=connection_id, Data=json.dumps(payload))
-    except ClientError as e:
-        logger.error(f"WebSocket post_to_connection error: {e}")
+    else:
+        try:
+            ws.post_to_connection(ConnectionId=connection_id, Data=json.dumps(payload))
+        except ClientError as e:
+            logger.error(f"WebSocket post_to_connection error: {e}")
 
 
 def _end_with_error(connection_id: str, message: str, code: int = 500):
@@ -896,7 +1016,6 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
             f"{runtime_ctx}\n"
             f"<doc_excerpts>\n{kb_text}\n</doc_excerpts>\n\n"
             f"User question: {prompt}"
-            
         )
     else:
         user_text = (
@@ -910,9 +1029,9 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
     messages.append({"role": "user", "content": [{"text": user_text}]})
     system = [{"text": cfg.SYSTEM_PROMPT}] if cfg.SYSTEM_PROMPT else None
 
-    # --- streaming with inline linkification ---
     sent_parts: list[str] = []
-    pending = ""  # small buffer to avoid splitting a URL across chunks
+    pending = ""
+    TAIL = 200
 
     try:
         resp = brt.converse_stream(modelId=MODEL_ID, messages=messages, system=system)
@@ -930,13 +1049,12 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
         if "contentBlockDelta" in ev:
             delta = (ev["contentBlockDelta"].get("delta") or {}).get("text") or ""
             pending += delta
-
-            # Flush a "safe" portion (leave a tail so we don't cut through a URL)
-            if len(pending) > 400 or "\n" in delta:
-                safe = pending[:-80]
-                pending = pending[-80:]
+            if len(pending) > 600 or "\n" in delta:
+                safe = pending[:-TAIL]
+                pending = pending[-TAIL:]
                 if safe:
                     safe = _linkify_bare_urls(safe)
+                    safe = _emphasize_stats(safe)
                     sent_parts.append(safe)
                     _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": safe})
 
@@ -950,20 +1068,17 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
             _end_with_error(connection_id, "Model streaming error.", 500)
             return
 
-    # Flush the remainder
     if pending:
         tail = _linkify_bare_urls(pending)
+        tail = _emphasize_stats(tail)
         sent_parts.append(tail)
         _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": tail})
 
-    # Build the full text we've already sent, for duplicate checks below
     full_summary = "".join(sent_parts)
 
-    # -------- Inline suggested reference (improved) --------
     try:
         if ref_url:
             ref_domain = urllib.parse.urlparse(ref_url).netloc.lower()
-            # Only suppress if the SAME DOMAIN is already linked; allow adding UNAIDS even if other links exist.
             already_contains_ref = ref_url in (full_summary or "")
             already_linked_same_domain = bool(re.search(
                 r"\]\(\s*https?://[^)]*" + re.escape(ref_domain) + r"[^)]*\)",
@@ -986,7 +1101,6 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
     except Exception as e:
         logger.warning(f"Inline suggested reference append error: {e}")
 
-    # -------- Inline-only "Sources at a glance" (reason-first) --------
     sources_to_send = []
     if use_kb and kb_sources:
         sources_to_send.extend(kb_sources)
@@ -1023,11 +1137,12 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
                 logger.warning(f"Lead-in generation failed, using random fallback: {e}")
                 lead_in = _random_sources_leadin()
 
+            follow_up = _pick_follow_up(prompt, has_ref_site=bool(ref_url), has_sources=True, mode="talk")
             sources_block = (
                 "\n\n&nbsp;\n\n\n"
                 f"_{lead_in}_\n" +
                 "\n".join(inline_lines) +
-                "\n\nWould you like me to give you a brief summary of these documents or a step-by-step walkthrough?\n"
+                f"\n\n{follow_up}\n"
             )
             _send_ws(connection_id, {
                 "type": "delta",
@@ -1041,7 +1156,6 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
 
 # ---------- Handler ----------
 def _os_count_keyword(keyword: str):
-    """Placeholder for COUNT flow; implement if needed."""
     return "Document counting is not implemented in this build.", "", 0
 
 
@@ -1075,7 +1189,6 @@ def lambda_handler(event, _context):
         # 2) Runtime routing: link-only
         rhit = _match_runtime(prompt)
         if rhit and rhit.get("link_only"):
-            # Link-only still streams markdown, no structured sources
             url = (rhit.get("source_url") or "").strip()
             name = (rhit.get("primary_source") or "Link").strip()
             text = f"{rhit.get('answer_text') or 'Here’s the best source:'}\n\n[{name}]({url})" if url else (rhit.get('answer_text') or 'Here’s the best source.')

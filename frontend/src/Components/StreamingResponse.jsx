@@ -1,11 +1,17 @@
-import React, { useState, useEffect, useRef } from "react";
-import { Grid, Avatar, Typography, IconButton, Tooltip, Box } from "@mui/material";
+// src/Components/StreamingResponse.jsx
+import React, { useRef, useEffect, useState } from "react";
+import { Grid, Typography, IconButton, Tooltip, Box } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
 import CheckIcon from "@mui/icons-material/Check";
-import BotAvatar from "../Assets/BotAvatar.svg";
-import LoadingAnimation from "../Assets/loading_animation.gif";
-import { ALLOW_MARKDOWN_BOT, BOTMESSAGE_TEXT_COLOR } from "../utilities/constants";
 import ReactMarkdown from "react-markdown";
+import { keyframes } from "@mui/system";
+
+import { ALLOW_MARKDOWN_BOT, BOTMESSAGE_TEXT_COLOR } from "../utilities/constants";
+
+const bounce = keyframes`
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+  40% { transform: scale(1); opacity: 1; }
+`;
 
 const StreamingResponse = ({ websocket, onStreamComplete }) => {
   const [currentStreamText, setCurrentStreamText] = useState("");
@@ -15,7 +21,9 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
 
   useEffect(() => {
     isMounted.current = true;
-    return () => { isMounted.current = false; };
+    return () => {
+      isMounted.current = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -73,27 +81,93 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
       if (websocket.onerror === handleWebSocketError) websocket.onerror = null;
       if (websocket.onclose === handleWebSocketClose) websocket.onclose = null;
     };
-  }, [websocket, onStreamComplete]); // eslint-disable-line
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [websocket, onStreamComplete]);
 
   const handleCopyToClipboard = () => {
     if (!currentStreamText) return;
-    navigator.clipboard.writeText(currentStreamText).then(() => {
-      setCopySuccess(true);
-      setTimeout(() => setCopySuccess(false), 3000);
-    }).catch((err) => console.error("Copy failed", err));
+    navigator.clipboard
+      .writeText(currentStreamText)
+      .then(() => {
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 3000);
+      })
+      .catch((err) => console.error("Copy failed", err));
   };
 
+  // --- Loading: "typing…" three dots ---
   if (showLoading) {
     return (
-      <Box sx={{ width: '100%' }}>
-        <Grid container direction="row" justifyContent="flex-start" alignItems="flex-start" spacing={1} wrap="nowrap">
-          {/* <Grid item>
-            <Avatar alt="Bot Avatar" src={BotAvatar} sx={{ width: 40, height: 40, mt: 1 }} />
-          </Grid> */}
-          {/* NO bubble background while loading */}
-          <Grid item xs sx={{ position: "relative", mt: 1, minWidth: '50px', maxWidth: 'calc(100% - 50px)', wordWrap: 'break-word', minHeight: '40px' }}>
-            <Box sx={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center', height: '100%', minHeight: 'inherit' }}>
-              <img src={LoadingAnimation} alt="Loading..." style={{ width: '40px', height: '40px' }} />
+      <Box sx={{ width: "100%" }}>
+        <Grid
+          container
+          direction="row"
+          justifyContent="flex-start"
+          alignItems="flex-start"
+          spacing={1}
+          wrap="nowrap"
+        >
+          <Grid
+            item
+            xs
+            sx={{
+              position: "relative",
+              mt: 1,
+              minWidth: "50px",
+              maxWidth: "calc(100% - 50px)",
+              wordWrap: "break-word",
+              minHeight: "40px",
+            }}
+          >
+            <Box
+              role="status"
+              aria-live="polite"
+              aria-label="Assistant is typing"
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                gap: 1.2,
+                height: "100%",
+                minHeight: "inherit",
+                pl: 0.5,
+              }}
+            >
+              {/* Dot 1 */}
+              <Box
+                sx={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: "50%",
+                  bgcolor: (t) => t.palette.text.primary,
+                  animation: `${bounce} 1.2s infinite ease-in-out`,
+                  animationDelay: "0s",
+                  "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+                }}
+              />
+              {/* Dot 2 */}
+              <Box
+                sx={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: "50%",
+                  bgcolor: (t) => t.palette.text.primary,
+                  animation: `${bounce} 1.2s infinite ease-in-out`,
+                  animationDelay: "0.15s",
+                  "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+                }}
+              />
+              {/* Dot 3 */}
+              <Box
+                sx={{
+                  width: 10,
+                  height: 10,
+                  borderRadius: "50%",
+                  bgcolor: (t) => t.palette.text.primary,
+                  animation: `${bounce} 1.2s infinite ease-in-out`,
+                  animationDelay: "0.3s",
+                  "@media (prefers-reduced-motion: reduce)": { animation: "none" },
+                }}
+              />
             </Box>
           </Grid>
         </Grid>
@@ -104,22 +178,46 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
   if (!currentStreamText) return null;
 
   return (
-    <Box sx={{ width: '100%' }}>
-      <Grid container direction="row" justifyContent="flex-start" alignItems="flex-start" spacing={1} wrap="nowrap">
-        {/* <Grid item>
-          <Avatar alt="Bot Avatar" src={BotAvatar} sx={{ width: 40, height: 40, mt: 1 }} />
-        </Grid> */}
-        {/* NO bubble: plain text area for bot stream */}
-        <Grid item xs sx={{ position: "relative", mt: 1, minWidth: '50px', maxWidth: 'calc(100% - 50px)', wordWrap: 'break-word', minHeight: '40px' }}>
+    <Box sx={{ width: "100%" }}>
+      <Grid
+        container
+        direction="row"
+        justifyContent="flex-start"
+        alignItems="flex-start"
+        spacing={1}
+        wrap="nowrap"
+      >
+        <Grid
+          item
+          xs
+          sx={{
+            position: "relative",
+            mt: 1,
+            minWidth: "50px",
+            maxWidth: "calc(100% - 50px)",
+            wordWrap: "break-word",
+            minHeight: "40px",
+          }}
+        >
           {currentStreamText && (
             <Tooltip title={copySuccess ? "Copied" : "Copy current text"}>
-              <IconButton size="small" onClick={handleCopyToClipboard} sx={{ position: "absolute", top: 5, right: 5, zIndex: 1 }}>
+              <IconButton
+                size="small"
+                onClick={handleCopyToClipboard}
+                sx={{ position: "absolute", top: 5, right: 5, zIndex: 1 }}
+              >
                 {copySuccess ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
               </IconButton>
             </Tooltip>
           )}
+
           {ALLOW_MARKDOWN_BOT ? (
-            <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR} sx={{ '& > p': { margin: 0 } }}>
+            <Typography
+              variant="body2"
+              component="div"
+              color={BOTMESSAGE_TEXT_COLOR}
+              sx={{ "& > p": { margin: 0 } }}
+            >
               <ReactMarkdown>{currentStreamText || "\u00A0"}</ReactMarkdown>
             </Typography>
           ) : (
