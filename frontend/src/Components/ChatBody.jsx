@@ -1,4 +1,3 @@
-// src/Components/ChatBody.jsx
 import React, { useRef, useEffect, useState } from 'react';
 import { useCookies } from 'react-cookie';
 import { Box, Grid, Typography } from '@mui/material';
@@ -13,7 +12,8 @@ import {
   USERMESSAGE_TEXT_COLOR,
   WEBSOCKET_API,
   ALLOW_CHAT_HISTORY,
-  CHAT_TOP_SPACING
+  CHAT_TOP_SPACING,
+  SIDE_GUTTER, // <-- NEW: shared gutters
 } from '../utilities/constants';
 import BotFileCheckReply from './BotFileCheckReply';
 import SpeechRecognitionComponent from './SpeechRecognition';
@@ -25,8 +25,6 @@ import BotReply from './BotReply';
 import { useRole } from '../contexts/RoleContext';
 
 // -------------------- DEV TOGGLE --------------------
-// Flip to true/false (or comment out the render block below)
-// to quickly show/hide a test user bubble without touching state.
 const DEV_SHOW_TEST_MESSAGE = false;
 // ---------------------------------------------------
 
@@ -42,13 +40,14 @@ Ask me anything to get started. Type **/help** for tips.`;
 
 function UserReply({ message }) {
   return (
-    <Grid container direction="row" justifyContent="flex-end" alignItems="flex-start" spacing={1}>
+    <Grid container direction="row" justifyContent="flex-end" alignItems="flex-start" spacing={0}>
       <Grid
         item
         className="userMessage"
         sx={{
           backgroundColor: (theme) => theme.palette.background.userMessage, // #FCF1F2
           color: '#5d5d5d',
+
           // Rounder pill shape & breathing room
           px: 4.5,
           py: 3,
@@ -225,8 +224,8 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
           overflowY: 'auto',
           overflowX: 'hidden',
           mb: 1,
-          px: { xs: 3, md: 5, lg: 8 },
-          pt: `${CHAT_TOP_SPACING}px`, // keep if you still want initial top offset
+          px: SIDE_GUTTER,            // <-- unified gutters here
+          pt: `${CHAT_TOP_SPACING}px`,
           '&::-webkit-scrollbar': { width: '6px' },
           '&::-webkit-scrollbar-track': { background: '#f1f1f1' },
           '&::-webkit-scrollbar-thumb': { background: '#888', borderRadius: '3px' },
@@ -272,7 +271,7 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
           flexShrink: 0,
           alignItems: 'flex-end',
           py: 1,
-          px: { xs: 2, md: 3 },
+          px: SIDE_GUTTER,           // <-- unified gutters here
           borderTop: (theme) => `1px solid ${theme.palette.divider}`,
         }}
       >

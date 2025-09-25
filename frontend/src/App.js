@@ -56,11 +56,11 @@ function MainApp() {
   }, []);
 
   // // Auto-hide left nav on mobile
-  // useEffect(() => {
-  //   if (isMobile) {
-  //     setLeftNav(false);
-  //   }
-  // }, [isMobile]);
+  useEffect(() => {
+    if (isMobile) {
+      setLeftNav(false);
+    }
+  }, [isMobile]);
 
   const handleFileUploadComplete = (file, fileStatus) => {
     setUploadedFile(file);
