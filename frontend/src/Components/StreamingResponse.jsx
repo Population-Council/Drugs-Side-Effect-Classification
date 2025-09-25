@@ -1,4 +1,3 @@
-// src/Components/StreamingResponse.jsx
 import React, { useRef, useEffect, useState } from "react";
 import { Grid, Typography, IconButton, Tooltip, Box } from "@mui/material";
 import ContentCopyIcon from "@mui/icons-material/ContentCopy";
@@ -21,9 +20,7 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
 
   useEffect(() => {
     isMounted.current = true;
-    return () => {
-      isMounted.current = false;
-    };
+    return () => { isMounted.current = false; };
   }, []);
 
   useEffect(() => {
@@ -48,7 +45,7 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
           accumulatedText += jsonData.text;
           setCurrentStreamText(accumulatedText);
         } else if (jsonData.type === "sources") {
-          // ignore structured sources
+          // ignore
         } else if (jsonData.type === "end" || jsonData.type === "error") {
           const isError = jsonData.type === "error";
           const errorMsg = isError ? jsonData.text : null;
@@ -86,72 +83,22 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
 
   const handleCopyToClipboard = () => {
     if (!currentStreamText) return;
-    navigator.clipboard
-      .writeText(currentStreamText)
-      .then(() => {
-        setCopySuccess(true);
-        setTimeout(() => setCopySuccess(false), 3000);
-      })
+    navigator.clipboard.writeText(currentStreamText)
+      .then(() => { setCopySuccess(true); setTimeout(() => setCopySuccess(false), 3000); })
       .catch((err) => console.error("Copy failed", err));
   };
 
-  // --- Loading: "typing…" three dots ---
+  // Loader (typing dots)
   if (showLoading) {
     return (
       <Box sx={{ width: "100%" }}>
-        <Grid
-          container
-          direction="row"
-          justifyContent="flex-start"
-          alignItems="flex-start"
-          spacing={1}
-          wrap="nowrap"
-        >
-          <Grid
-            item
-            xs
-            sx={{
-              position: "relative",
-              mt: 1,
-              minWidth: 0,          // allow shrink in flex row
-              width: "100%",
-              minHeight: "40px",
-            }}
-          >
-            <Box
-              role="status"
-              aria-live="polite"
-              aria-label="Assistant is typing"
-              sx={{
-                display: "flex",
-                alignItems: "center",
-                gap: 1.2,
-                height: "100%",
-                minHeight: "inherit",
-                pl: 0.5,
-              }}
-            >
-              <Box sx={{
-                width: 10, height: 10, borderRadius: "50%",
-                bgcolor: (t) => t.palette.text.primary,
-                animation: `${bounce} 1.2s infinite ease-in-out`,
-                animationDelay: "0s",
-                "@media (prefers-reduced-motion: reduce)": { animation: "none" },
-              }} />
-              <Box sx={{
-                width: 10, height: 10, borderRadius: "50%",
-                bgcolor: (t) => t.palette.text.primary,
-                animation: `${bounce} 1.2s infinite ease-in-out`,
-                animationDelay: "0.15s",
-                "@media (prefers-reduced-motion: reduce)": { animation: "none" },
-              }} />
-              <Box sx={{
-                width: 10, height: 10, borderRadius: "50%",
-                bgcolor: (t) => t.palette.text.primary,
-                animation: `${bounce} 1.2s infinite ease-in-out`,
-                animationDelay: "0.3s",
-                "@media (prefers-reduced-motion: reduce)": { animation: "none" },
-              }} />
+        <Grid container direction="row" justifyContent="flex-start" alignItems="flex-start" spacing={1} wrap="nowrap">
+          <Grid item xs sx={{ position: "relative", mt: 1, minWidth: 0, width: "100%", minHeight: "40px" }}>
+            <Box role="status" aria-live="polite" aria-label="Assistant is typing"
+              sx={{ display: "flex", alignItems: "center", gap: 1.2, height: "100%", minHeight: "inherit", pl: 0.5 }}>
+              <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: (t) => t.palette.text.primary, animation: `${bounce} 1.2s infinite ease-in-out`, animationDelay: "0s", "@media (prefers-reduced-motion: reduce)": { animation: "none" } }} />
+              <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: (t) => t.palette.text.primary, animation: `${bounce} 1.2s infinite ease-in-out`, animationDelay: "0.15s", "@media (prefers-reduced-motion: reduce)": { animation: "none" } }} />
+              <Box sx={{ width: 10, height: 10, borderRadius: "50%", bgcolor: (t) => t.palette.text.primary, animation: `${bounce} 1.2s infinite ease-in-out`, animationDelay: "0.3s", "@media (prefers-reduced-motion: reduce)": { animation: "none" } }} />
             </Box>
           </Grid>
         </Grid>
@@ -161,69 +108,55 @@ const StreamingResponse = ({ websocket, onStreamComplete }) => {
 
   if (!currentStreamText) return null;
 
-  const textStyles = {
-    whiteSpace: "pre-wrap",
+  // Use different styles for markdown vs plain text
+  const markdownStyles = {
+    whiteSpace: "normal",                   // <— IMPORTANT: let markdown control spacing
     overflowWrap: "anywhere",
     wordBreak: "break-word",
-    pr: 4,                                  // space for the copy button
-    maxWidth: { xs: "85%", md: "70%" },     // align with user bubble width
-    // Link styling (visited/unvisited same color + dotted underline)
-    "& a, & a:visited": {
-      color: "inherit",
-      textDecoration: "none",
-      borderBottom: "1px dotted currentColor",
-    },
-    "& a:hover, & a:focus": {
-      borderBottomStyle: "solid",
-      outline: "none",
-    },
-    // Markdown safety
-    "& pre": { whiteSpace: "pre-wrap", overflowX: "auto", maxWidth: "100%" },
+    pr: 4,
+    maxWidth: { xs: "85%", md: "70%" },
+    // tighten default element margins
+    "& p": { margin: "0 0 0.5rem 0" },
+    "& ul, & ol": { margin: "0.25rem 0 0.5rem 1.25rem", paddingLeft: "1.25rem" },
+    "& li": { margin: "0.15rem 0" },
+    // link styling
+    "& a, & a:visited": { color: "inherit", textDecoration: "none", borderBottom: "1px dotted currentColor" },
+    "& a:hover, & a:focus": { borderBottomStyle: "solid", outline: "none" },
+    // code/media safety
+    "& pre": { whiteSpace: "pre", overflowX: "auto", maxWidth: "100%", margin: "0.25rem 0" },
     "& code": { wordBreak: "break-word" },
     "& table": { display: "block", width: "100%", overflowX: "auto" },
     "& img, & video": { maxWidth: "100%", height: "auto" },
-    "& > p": { margin: 0 },
+  };
+
+  const plainTextStyles = {
+    whiteSpace: "pre-wrap",                 // preserve newlines for plain text
+    overflowWrap: "anywhere",
+    wordBreak: "break-word",
+    pr: 4,
+    maxWidth: { xs: "85%", md: "70%" },
+    "& a, & a:visited": { color: "inherit", textDecoration: "none", borderBottom: "1px dotted currentColor" },
+    "& a:hover, & a:focus": { borderBottomStyle: "solid", outline: "none" },
   };
 
   return (
     <Box sx={{ width: "100%" }}>
-      <Grid
-        container
-        direction="row"
-        justifyContent="flex-start"
-        alignItems="flex-start"
-        spacing={1}
-        wrap="nowrap"
-      >
-        <Grid
-          item
-          xs
-          sx={{
-            position: "relative",
-            mt: 1,
-            minWidth: 0,          // CRUCIAL: let flex child shrink
-            width: "100%",
-            minHeight: "40px",
-          }}
-        >
+      <Grid container direction="row" justifyContent="flex-start" alignItems="flex-start" spacing={1} wrap="nowrap">
+        <Grid item xs sx={{ position: "relative", mt: 1, minWidth: 0, width: "100%", minHeight: "40px" }}>
           {currentStreamText && (
             <Tooltip title={copySuccess ? "Copied" : "Copy current text"}>
-              <IconButton
-                size="small"
-                onClick={handleCopyToClipboard}
-                sx={{ position: "absolute", top: 5, right: 5, zIndex: 1 }}
-              >
+              <IconButton size="small" onClick={handleCopyToClipboard} sx={{ position: "absolute", top: 5, right: 5, zIndex: 1 }}>
                 {copySuccess ? <CheckIcon fontSize="small" /> : <ContentCopyIcon fontSize="small" />}
               </IconButton>
             </Tooltip>
           )}
 
           {ALLOW_MARKDOWN_BOT ? (
-            <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR} sx={textStyles}>
+            <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR} sx={markdownStyles}>
               <ReactMarkdown>{currentStreamText || "\u00A0"}</ReactMarkdown>
             </Typography>
           ) : (
-            <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR} sx={textStyles}>
+            <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR} sx={plainTextStyles}>
               {currentStreamText || "\u00A0"}
             </Typography>
           )}
