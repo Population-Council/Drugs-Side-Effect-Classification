@@ -24,6 +24,12 @@ import { useProcessing } from '../contexts/ProcessingContext';
 import BotReply from './BotReply';
 import { useRole } from '../contexts/RoleContext';
 
+// -------------------- DEV TOGGLE --------------------
+// Flip to true/false (or comment out the render block below)
+// to quickly show/hide a test user bubble without touching state.
+const DEV_SHOW_TEST_MESSAGE = false;
+// ---------------------------------------------------
+
 const TOBI_GREETING_MD = `**Hi — I’m Tobi.** I’m your virtual assistant for **SSLN & I2I**.
 
 I can help you:
@@ -43,16 +49,16 @@ function UserReply({ message }) {
         sx={{
           backgroundColor: (theme) => theme.palette.background.userMessage, // #FCF1F2
           color: '#5d5d5d',
-          // --- Make it rounder & give breathing room on the x-axis ---
-          px: 4.5,                 // was 3  → more horizontal padding
-          py: 3,                   // was 2.25 → taller = rounder
-          minHeight: 44,           // ensures pill height even for short text
-          display: 'inline-flex',  // center text vertically inside the pill
+          // Rounder pill shape & breathing room
+          px: 4.5,
+          py: 3,
+          minHeight: 44,
+          display: 'inline-flex',
           alignItems: 'center',
 
           borderRadius: '9999px',
           width: 'fit-content',
-          maxWidth: { xs: '78%', md: '60%' }, // slightly narrower so it looks rounder
+          maxWidth: { xs: '78%', md: '60%' },
           overflow: 'hidden',
 
           // text safety
@@ -71,6 +77,7 @@ function UserReply({ message }) {
             whiteSpace: 'pre-wrap',
             overflowWrap: 'anywhere',
             wordBreak: 'break-word',
+            color: USERMESSAGE_TEXT_COLOR || '#5d5d5d',
           }}
         >
           {message}
@@ -91,8 +98,6 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
   const websocket = useRef(null);
   const [isWsConnected, setIsWsConnected] = useState(false);
   const greetedRef = useRef(false);
-
-  
 
   useEffect(() => {
     if (!WEBSOCKET_API) {
@@ -221,13 +226,20 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
           overflowX: 'hidden',
           mb: 1,
           px: { xs: 3, md: 5, lg: 8 },
-          pt: `${CHAT_TOP_SPACING}px`,
+          pt: `${CHAT_TOP_SPACING}px`, // keep if you still want initial top offset
           '&::-webkit-scrollbar': { width: '6px' },
           '&::-webkit-scrollbar-track': { background: '#f1f1f1' },
           '&::-webkit-scrollbar-thumb': { background: '#888', borderRadius: '3px' },
           '&::-webkit-scrollbar-thumb:hover': { background: '#555' },
         }}
       >
+        {/* DEV: static user bubble for quick layout checks */}
+        {DEV_SHOW_TEST_MESSAGE && (
+          <Box sx={{ mb: 2 }}>
+            <UserReply message="(DEV) This is a test user message to check spacing/rounding/wrapping." />
+          </Box>
+        )}
+
         <Box sx={{ display: ALLOW_FAQ && !questionAsked ? 'flex' : 'none' }}>
           <FAQExamples onPromptClick={handlePromptClick} />
         </Box>
