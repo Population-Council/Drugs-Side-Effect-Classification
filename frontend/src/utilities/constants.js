@@ -21,9 +21,9 @@ export const HEADER_TEXT_GRADIENT = "linear-gradient(90deg, #003A5D, #6BC049)";
 // Message colors
 // >>> For testing: make BOTH bot and user message text RED <<<
 export const BOTMESSAGE_BACKGROUND = "#F5F5F5"; // Not used now that bot bubble is removed, but keep for fallback
-export const BOTMESSAGE_TEXT_COLOR = "5D5D5D";     // <— changed from #000000 to red
-export const USERMESSAGE_BACKGROUND = "#01665cff"; // User bubble background
-export const USERMESSAGE_TEXT_COLOR = "5D5D5D";       // <— changed from #FFFFFF to red
+export const BOTMESSAGE_TEXT_COLOR = "#5D5D5D";     // <— changed from #000000 to red
+export const USERMESSAGE_BACKGROUND = "#FCF1F2"; // User bubble background
+export const USERMESSAGE_TEXT_COLOR = "#5D5D5D";       // <— changed from #FFFFFF to red
 
 // --------------------------------------------------------------------------------------------------------//
 // Text Constants
