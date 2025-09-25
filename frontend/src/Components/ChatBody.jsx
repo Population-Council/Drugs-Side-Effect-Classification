@@ -92,6 +92,8 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
   const [isWsConnected, setIsWsConnected] = useState(false);
   const greetedRef = useRef(false);
 
+  const hasUserMessage = messageList?.some(m => m.sentBy === 'USER');
+
   useEffect(() => {
     if (!WEBSOCKET_API) {
       console.error("WebSocket API URL is not defined. Set REACT_APP_WEBSOCKET_API in a .env file.");
@@ -219,13 +221,16 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
           overflowX: 'hidden',
           mb: 1,
           px: { xs: 3, md: 5, lg: 8 },
-          pt: `${CHAT_TOP_SPACING}px`,
+          // pt: `${CHAT_TOP_SPACING}px`,
           '&::-webkit-scrollbar': { width: '6px' },
           '&::-webkit-scrollbar-track': { background: '#f1f1f1' },
           '&::-webkit-scrollbar-thumb': { background: '#888', borderRadius: '3px' },
           '&::-webkit-scrollbar-thumb:hover': { background: '#555' },
         }}
       >
+         {!hasUserMessage && (
+          <Box sx={{ height: `${CHAT_TOP_SPACING}px` }} />)}
+          
         <Box sx={{ display: ALLOW_FAQ && !questionAsked ? 'flex' : 'none' }}>
           <FAQExamples onPromptClick={handlePromptClick} />
         </Box>
