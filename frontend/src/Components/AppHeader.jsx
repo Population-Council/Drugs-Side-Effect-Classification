@@ -18,7 +18,7 @@ function AppHeader({ showSwitch }) {
     // borderBottom: (theme) => `1.5px solid ${theme.palette.primary[50]}`,
     display: 'flex',
     justifyContent: 'center',
-    boxShadow: "0 18px 36px rgba(0,0,0,0.45), 0 8px 16px rgba(0,0,0,0.35)",
+    boxShadow: "0 2px 8px rgba(0,0,0,0.08)",
 
     // you can keep the bg here, but it's already on the wrapper;
     // if the wrapper has it, you can drop these 4 lines:
