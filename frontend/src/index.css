@@ -137,12 +137,12 @@ code {
    color : white;
 } */
 /* Text Align Classes */
+
 .MuiGrid-root.MuiGrid-item.userMessage {
   margin-right: 0.5rem;
   text-align: start;
   padding: 10px !important;
   max-width: 75%;
-  /* background: #f5f7fa; */
   border-radius: 8px;
   flex: none;
 }

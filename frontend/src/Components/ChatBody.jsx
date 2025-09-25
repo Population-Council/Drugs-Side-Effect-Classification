@@ -62,7 +62,7 @@ function UserReply({ message }) {
         }}
       >
         {/* Inner padding wrapper to guarantee symmetric padding */}
-        <Box sx={{ px: { xs: 6, md: 8 }, py: { xs: 4, md: 5 } }}>
+        <Box sx={{ px: { xs: 2, md: 4 }, py: { xs: 2, md: 2 } }}>
           <Typography
             variant="body1"
             sx={{
