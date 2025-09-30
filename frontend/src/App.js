@@ -77,7 +77,7 @@ function MainApp() {
   return (
     <Box 
       sx={{ 
-        height: '100vh',
+        // height: '100vh',
         height: 'calc(var(--vh, 1vh) * 100)',
         display: 'flex',
         flexDirection: 'column',
@@ -87,19 +87,20 @@ function MainApp() {
       }}
     >
       {/* Header with background image */}
-      <Box 
-      sx={{
-    /* Never smaller than 80px, never larger than 148px, scales with viewport */
-    height: 'clamp(80px, 12vh, 148px)',
+     <Box
+  sx={{
+    // one source of truth for header height
+    '--header-h': 'clamp(90px, 13.5vh, 144px)',
+    height: 'var(--header-h)',
     position: 'relative',
     backgroundImage: `url(${headerBg})`,
     backgroundSize: 'cover',
     backgroundPosition: 'center',
     backgroundRepeat: 'no-repeat',
   }}
-      > 
-        <AppHeader showSwitch={true} />
-      </Box>
+>
+  <AppHeader showSwitch={true} />
+</Box>
       
       {/* Main Content Area */}
       <Box 
