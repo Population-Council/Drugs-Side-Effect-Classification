@@ -159,10 +159,24 @@ code {
 
 .MuiGrid-root.MuiGrid-container.MuiGrid-item.sendMessageContainer {
   padding: 0px 24px;
-  margin-top: 1rem;
-  /* margin-left: 1rem; */
+  margin: 0.5rem 0; /* top/bottom left/right */
   border-radius: 40px;
 }
+
+/* Medium screens and up */
+@media (min-width: 900px) {
+  .MuiGrid-root.MuiGrid-container.MuiGrid-item.sendMessageContainer {
+    margin: 1rem 0;
+  }
+}
+
+/* Large screens */
+@media (min-width: 1200px) {
+  .MuiGrid-root.MuiGrid-container.MuiGrid-item.sendMessageContainer {
+    margin: 1.5rem 0;
+  }
+}
+
 .MuiGrid-root.MuiGrid-container.MuiGrid-item.sendMessageContainer{
   background: #f4f4f4;
 }

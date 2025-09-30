@@ -141,12 +141,15 @@ function ChatInput({ onSendMessage, showLeftNav, setLeftNav }) {
       <Box sx={{ width: '100%' }}> {/* Wrapper Box to contain Chip and TextField */}
         {hiddenFileInput}
         {fileChipDisplay}
-        <Grid container item className="sendMessageContainer" alignItems="center">
+        <Grid container item className="sendMessageContainer" alignItems="center"  spacing={0}>
           <TextField
             className="sendMessageContainer"
             multiline={isMultilineAllowed}
+            margin="none"
             maxRows={8}
             fullWidth
+            
+            
             disabled={isListening}
             placeholder={TEXT[language].CHAT_INPUT_PLACEHOLDER}
             id="USERCHATINPUT_DESKTOP"
@@ -174,13 +177,7 @@ function ChatInput({ onSendMessage, showLeftNav, setLeftNav }) {
       {fileChipDisplay}
       <Grid container item className="sendMessageContainer" alignItems="center">
         <Grid item xs={1} container alignItems="center" justifyContent="center">
-          {/* <IconButton
-            aria-label="menu"
-            onClick={() => setLeftNav(!showLeftNav)}
-            color="primary"
-          >
-            <MenuIcon />
-          </IconButton> */}
+      
         </Grid>
         <Grid item xs={12}>
           <TextField
@@ -188,7 +185,7 @@ function ChatInput({ onSendMessage, showLeftNav, setLeftNav }) {
             multiline={false}
             
             fullWidth
-            
+            margin="none"  // ← ADD THIS to remove default MUI margins
             disabled={isListening}
             placeholder={TEXT[language].CHAT_INPUT_PLACEHOLDER}
             id="USERCHATINPUT_MOBILE"
