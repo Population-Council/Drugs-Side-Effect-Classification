@@ -267,12 +267,20 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
           display: 'flex',
           flexShrink: 0,
           alignItems: 'flex-end',
-          py: 1,
-          px: SIDE_GUTTER,           // unified gutters
+          py: 0,  // ← REDUCED: was 1, now 0.5 (about 4px instead of 8px)
+          px: SIDE_GUTTER,
           borderTop: (theme) => `1px solid ${theme.palette.divider}`,
         }}
       >
-        <Box sx={{ display: 'flex', flexGrow: 1, mx: 'auto', alignItems: 'flex-end', bgcolor: 'background.paper', borderRadius: '25px', p: '20px 4px' }}>
+        <Box sx={{ 
+          display: 'flex', 
+          flexGrow: 1, 
+          mx: 'auto', 
+          alignItems: 'flex-end', 
+          bgcolor: 'background.paper', 
+          borderRadius: '25px', 
+          p: '0px 0px'  // ← REDUCED: was '20px 4px', now '8px 4px'
+        }}>
           <Box sx={{ display: ALLOW_VOICE_RECOGNITION ? 'flex' : 'none', alignSelf: 'center', ml: 1 }}>
             <SpeechRecognitionComponent setMessage={setMessage} getMessage={() => message} />
           </Box>
