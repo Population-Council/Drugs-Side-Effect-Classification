@@ -5,8 +5,9 @@ import { LuThumbsDown } from 'react-icons/lu';
 import ReactMarkdown from 'react-markdown';
 import { ALLOW_MARKDOWN_BOT, BOTMESSAGE_TEXT_COLOR } from '../utilities/constants';
 
-function BotReply({ message, name = 'Tobi', isGreeting = false }) {
+function BotReply({ message, name = 'Tobi', isGreeting = false, messageIndex, messageList, websocket }) {
   const [copied, setCopied] = useState(false);
+  const [feedbackSent, setFeedbackSent] = useState(null); // 'up' or 'down'
 
   const handleCopy = async () => {
     try {
@@ -18,10 +19,44 @@ function BotReply({ message, name = 'Tobi', isGreeting = false }) {
     }
   };
 
-  const handleUp = () => console.log('Thumbs up clicked');
-  const handleDown = () => console.log('Thumbs down clicked');
+  const handleUp = () => {
+    console.log('Thumbs up clicked');
+    setFeedbackSent('up');
+  };
 
-  // For Markdown: let markdown control spacing; tighten margins
+  const handleDown = () => {
+    // Find the most recent user message before this bot message
+    let userMessage = '';
+    if (messageList && messageIndex !== undefined) {
+      for (let i = messageIndex - 1; i >= 0; i--) {
+        const msg = messageList[i];
+        if (msg.sentBy === 'USER' && msg.type === 'TEXT') {
+          userMessage = msg.message || '';
+          break;
+        }
+      }
+    }
+
+    // Send feedback via websocket
+    if (websocket && websocket.readyState === WebSocket.OPEN) {
+      try {
+        websocket.send(JSON.stringify({
+          action: 'submitFeedback',
+          rating: 'thumbsdown',
+          botMessage: message,
+          userMessage: userMessage,
+          timestamp: new Date().toISOString()
+        }));
+        console.log('Thumbs down feedback sent');
+        setFeedbackSent('down');
+      } catch (e) {
+        console.error('Failed to send feedback:', e);
+      }
+    } else {
+      console.error('WebSocket not connected, cannot send feedback');
+    }
+  };
+
   const markdownStyles = {
     whiteSpace: 'normal',
     overflowWrap: 'anywhere',
@@ -30,17 +65,14 @@ function BotReply({ message, name = 'Tobi', isGreeting = false }) {
     '& p': { margin: '0 0 0.5rem 0' },
     '& ul, & ol': { margin: '0.25rem 0 0.5rem 1.25rem', paddingLeft: '1.25rem' },
     '& li': { margin: '0.15rem 0' },
-    // links
     '& a, & a:visited': { color: 'inherit', textDecoration: 'none', borderBottom: '1px dotted currentColor' },
     '& a:hover, & a:focus': { borderBottomStyle: 'solid', outline: 'none' },
-    // code/media
     '& pre': { whiteSpace: 'pre', overflowX: 'auto', maxWidth: '100%', margin: '0.25rem 0' },
     '& code': { wordBreak: 'break-word' },
     '& table': { display: 'block', width: '100%', overflowX: 'auto' },
     '& img, & video': { maxWidth: '100%', height: 'auto' },
   };
 
-  // For plain text (non-markdown): preserve explicit newlines
   const plainTextStyles = {
     whiteSpace: 'pre-wrap',
     overflowWrap: 'anywhere',
@@ -75,7 +107,6 @@ function BotReply({ message, name = 'Tobi', isGreeting = false }) {
           </Box>
         </Box>
 
-        {/* Only show action buttons if NOT greeting */}
         {!isGreeting && (
           <Box sx={{ mt: 0.5, display: 'flex', justifyContent: 'flex-start', gap: 0.5 }}>
             <Tooltip title={copied ? 'Copied' : 'Copy'}>
@@ -85,13 +116,23 @@ function BotReply({ message, name = 'Tobi', isGreeting = false }) {
             </Tooltip>
 
             <Tooltip title="Thumbs up">
-              <IconButton size="small" onClick={handleUp} aria-label="Thumbs up">
+              <IconButton 
+                size="small" 
+                onClick={handleUp} 
+                aria-label="Thumbs up"
+                sx={{ color: feedbackSent === 'up' ? 'primary.main' : 'inherit' }}
+              >
                 <FiThumbsUp size={16} />
               </IconButton>
             </Tooltip>
 
             <Tooltip title="Thumbs down">
-              <IconButton size="small" onClick={handleDown} aria-label="Thumbs down">
+              <IconButton 
+                size="small" 
+                onClick={handleDown} 
+                aria-label="Thumbs down"
+                sx={{ color: feedbackSent === 'down' ? 'error.main' : 'inherit' }}
+              >
                 <LuThumbsDown size={16} />
               </IconButton>
             </Tooltip>

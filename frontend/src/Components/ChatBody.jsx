@@ -247,7 +247,13 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
     {msg.sentBy === 'USER' ? (
       <UserReply message={msg.message} />
     ) : msg.sentBy === 'BOT' && msg.type === 'TEXT' ? (
-      <BotReply message={msg.message} isGreeting={msg.isGreeting} />
+      <BotReply 
+      message={msg.message} 
+      isGreeting={msg.isGreeting}
+      messageIndex={index}
+      messageList={messageList}
+      websocket={websocket.current}
+      />
     ) : msg.sentBy === 'BOT' && msg.type === 'FILE' ? (
       <BotFileCheckReply messageId={index} message={msg.message} fileName={msg.fileName} fileStatus={msg.fileStatus} />
     ) : null}
