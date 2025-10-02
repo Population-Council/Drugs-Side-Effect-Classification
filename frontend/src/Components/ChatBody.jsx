@@ -114,22 +114,24 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
   }, []); 
 
   useEffect(() => {
-    if (!greetedRef.current && (!messageList || messageList.length === 0)) {
-      const timestamp = new Date().toISOString();
-      const botMessageBlock = createMessageBlock(
-        TOBI_GREETING_MD,
-        'BOT',
-        'TEXT',
-        'SENT',
-        '',
-        '',
-        [],
-        timestamp
-      );
-      addMessage(botMessageBlock);
-      greetedRef.current = true;
-    }
-  }, [messageList, addMessage]);
+  if (!greetedRef.current && (!messageList || messageList.length === 0)) {
+    const timestamp = new Date().toISOString();
+    const botMessageBlock = createMessageBlock(
+      TOBI_GREETING_MD,
+      'BOT',
+      'TEXT',
+      'SENT',
+      '',
+      '',
+      [],
+      timestamp
+    );
+    // Add a flag to mark this as the greeting
+    botMessageBlock.isGreeting = true;
+    addMessage(botMessageBlock);
+    greetedRef.current = true;
+  }
+}, [messageList, addMessage]);
 
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -240,17 +242,17 @@ function ChatBody({ onFileUpload, showLeftNav, setLeftNav }) {
           <FAQExamples onPromptClick={handlePromptClick} />
         </Box>
 
-        {messageList.map((msg, index) => (
-          <Box key={`${msg.sentBy}-${msg.timestamp || index}-${index}`} sx={{ mb: 2 }}>
-            {msg.sentBy === 'USER' ? (
-              <UserReply message={msg.message} />
-            ) : msg.sentBy === 'BOT' && msg.type === 'TEXT' ? (
-              <BotReply message={msg.message} />
-            ) : msg.sentBy === 'BOT' && msg.type === 'FILE' ? (
-              <BotFileCheckReply messageId={index} message={msg.message} fileName={msg.fileName} fileStatus={msg.fileStatus} />
-            ) : null}
-          </Box>
-        ))}
+   {messageList.map((msg, index) => (
+  <Box key={`${msg.sentBy}-${msg.timestamp || index}-${index}`} sx={{ mb: 2 }}>
+    {msg.sentBy === 'USER' ? (
+      <UserReply message={msg.message} />
+    ) : msg.sentBy === 'BOT' && msg.type === 'TEXT' ? (
+      <BotReply message={msg.message} isGreeting={msg.isGreeting} />
+    ) : msg.sentBy === 'BOT' && msg.type === 'FILE' ? (
+      <BotFileCheckReply messageId={index} message={msg.message} fileName={msg.fileName} fileStatus={msg.fileStatus} />
+    ) : null}
+  </Box>
+))}
 
         {/* Live stream */}
         {processing && isWsConnected && (
