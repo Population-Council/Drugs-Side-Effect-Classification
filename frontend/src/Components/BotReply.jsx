@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Grid, Box, Typography, IconButton, Tooltip } from '@mui/material';
 import { FiCopy, FiThumbsUp, FiCheck } from 'react-icons/fi';
@@ -6,7 +5,7 @@ import { LuThumbsDown } from 'react-icons/lu';
 import ReactMarkdown from 'react-markdown';
 import { ALLOW_MARKDOWN_BOT, BOTMESSAGE_TEXT_COLOR } from '../utilities/constants';
 
-function BotReply({ message, name = 'Tobi' }) {
+function BotReply({ message, name = 'Tobi', isGreeting = false }) {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -76,25 +75,28 @@ function BotReply({ message, name = 'Tobi' }) {
           </Box>
         </Box>
 
-        <Box sx={{ mt: 0.5, display: 'flex', justifyContent: 'flex-start', gap: 0.5 }}>
-          <Tooltip title={copied ? 'Copied' : 'Copy'}>
-            <IconButton size="small" onClick={handleCopy} aria-label="Copy message">
-              {copied ? <FiCheck size={16} /> : <FiCopy size={16} />}
-            </IconButton>
-          </Tooltip>
+        {/* Only show action buttons if NOT greeting */}
+        {!isGreeting && (
+          <Box sx={{ mt: 0.5, display: 'flex', justifyContent: 'flex-start', gap: 0.5 }}>
+            <Tooltip title={copied ? 'Copied' : 'Copy'}>
+              <IconButton size="small" onClick={handleCopy} aria-label="Copy message">
+                {copied ? <FiCheck size={16} /> : <FiCopy size={16} />}
+              </IconButton>
+            </Tooltip>
 
-          <Tooltip title="Thumbs up">
-            <IconButton size="small" onClick={handleUp} aria-label="Thumbs up">
-              <FiThumbsUp size={16} />
-            </IconButton>
-          </Tooltip>
+            <Tooltip title="Thumbs up">
+              <IconButton size="small" onClick={handleUp} aria-label="Thumbs up">
+                <FiThumbsUp size={16} />
+              </IconButton>
+            </Tooltip>
 
-          <Tooltip title="Thumbs down">
-            <IconButton size="small" onClick={handleDown} aria-label="Thumbs down">
-              <LuThumbsDown size={16} />
-            </IconButton>
-          </Tooltip>
-        </Box>
+            <Tooltip title="Thumbs down">
+              <IconButton size="small" onClick={handleDown} aria-label="Thumbs down">
+                <LuThumbsDown size={16} />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        )}
       </Grid>
     </Grid>
   );
