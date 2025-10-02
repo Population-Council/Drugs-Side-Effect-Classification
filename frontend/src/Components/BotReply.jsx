@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Grid, Box, Typography, IconButton, Tooltip } from '@mui/material';
 import { FiCopy, FiThumbsUp, FiCheck } from 'react-icons/fi';
@@ -23,7 +24,7 @@ function BotReply({ message, name = 'Tobi' }) {
 
   // For Markdown: let markdown control spacing; tighten margins
   const markdownStyles = {
-    whiteSpace: 'normal',                // <— key change (no pre-wrap)
+    whiteSpace: 'normal',
     overflowWrap: 'anywhere',
     wordBreak: 'break-word',
     maxWidth: { xs: '85%', md: '70%' },
@@ -57,7 +58,15 @@ function BotReply({ message, name = 'Tobi' }) {
           <Box sx={{ mt: 1 }}>
             {ALLOW_MARKDOWN_BOT ? (
               <Typography variant="body2" component="div" color={BOTMESSAGE_TEXT_COLOR} sx={markdownStyles}>
-                <ReactMarkdown>{message || ''}</ReactMarkdown>
+                <ReactMarkdown
+                  components={{
+                    a: ({node, ...props}) => (
+                      <a {...props} target="_blank" rel="noopener noreferrer" />
+                    )
+                  }}
+                >
+                  {message || ''}
+                </ReactMarkdown>
               </Typography>
             ) : (
               <Typography variant="body2" color={BOTMESSAGE_TEXT_COLOR} sx={plainTextStyles}>
