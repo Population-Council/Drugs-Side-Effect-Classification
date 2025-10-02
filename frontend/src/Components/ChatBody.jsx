@@ -51,7 +51,7 @@ function UserReply({ message }) {
 
           // Perfect pill
           borderRadius: '9999px',
-          bgcolor: (t) => t.palette.background.userMessage || '#FCF1F2',
+          bgcolor: (t) => t.palette.background.userMessage || '#222222',
           color: USERMESSAGE_TEXT_COLOR || '#5d5d5d',
 
           // Visual clarity

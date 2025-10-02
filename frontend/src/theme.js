@@ -30,7 +30,7 @@ const theme = createTheme({
     },
     text: {
       // Use hex (or rgb/hsl), not a named color
-      primary: '#5d5d5d',          // testing: main font color red
+      primary: '#222222',          // testing: main font color red
       secondary: 'rgba(0,0,0,0.6)',
     },
     background: {
