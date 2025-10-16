@@ -1,5 +1,4 @@
 # /cdk_backend/lambda/lambdaXbedrock/index.py
-
 import os
 import json
 import boto3
@@ -174,6 +173,10 @@ def _title_for_url(url: str) -> str:
         "phia.icap.columbia.edu": "ICAP PHIA",
         "icap.columbia.edu": "ICAP at Columbia University",
     }
+    
+    if "effectiveness-behavioural-interventions" in url:
+        return "GPC Behavioural Data"
+    
     if host in domain_map:
         return domain_map[host]
     if path_last and "." not in path_last:
@@ -244,19 +247,24 @@ def _emphasize_stats(text: str) -> str:
     out = []
 
     def process(seg: str) -> str:
-        # 1) bold number chains safely by rebuilding the chain
+        # 1) bold percentages FIRST (including chains like 73%-87%-81%)
+        seg = _PERCENT_RE.sub(lambda m: _wrap_bold(m.group(0)), seg)
+        
+        # 2) bold number chains (but skip if they contain %)
         def repl_chain(m: re.Match) -> str:
+            full_match = m.group(0)
+            # Skip if this chain contains % (already handled above)
+            if '%' in full_match:
+                return full_match
+                
             first = m.group(1)
             rest = m.group(2)
-            # Split rest by separators, preserving separators
             pieces = re.split(r"([–-])", rest)
-            # pieces starts with separator or number depending on split; normalize
             rebuilt = [_wrap_bold(first)]
             i = 0
             while i < len(pieces):
                 token = pieces[i]
                 if token in ("-", "–"):
-                    # next should be number (possibly with surrounding spaces removed)
                     num_raw = pieces[i+1] if i+1 < len(pieces) else ""
                     num_clean = num_raw.strip()
                     rebuilt.append(token)
@@ -269,18 +277,14 @@ def _emphasize_stats(text: str) -> str:
 
         seg = _CHAIN_RE.sub(repl_chain, seg)
 
-        # 2) bold percentages
-        seg = _PERCENT_RE.sub(lambda m: _wrap_bold(m.group(0)), seg)
-
         # 3) bold standalone numbers (skip ones already bolded)
         tmp = []
         cursor = 0
         for m in _NUMBER_RE.finditer(seg):
             start, end = m.start(), m.end()
-            # guard: don't bold if immediately inside/adjacent to **
             before = seg[max(0, start-2):start]
             after = seg[end:end+2]
-            if "**" in before or "**" in after:
+            if "**" in before or "**" in after or "%" in after[:1]:
                 tmp.append(seg[cursor:end])
                 cursor = end
                 continue
@@ -296,7 +300,6 @@ def _emphasize_stats(text: str) -> str:
             out.append(links[i])
 
     return "".join(out)
-
 
 # ---------- Suggested reference picking ----------
 def _tokenize(text: str) -> set[str]:
@@ -314,6 +317,52 @@ def _url_tokens(u: str) -> set[str]:
 
 
 def _pick_reference_url(prompt: str) -> str | None:
+    
+    
+    
+    q = _tokenize(prompt)
+    prompt_lower = prompt.lower()
+    
+        # TEST: Handle Pokemon queries (for testing)
+    if "pokemon" in prompt_lower or "pikachu" in prompt_lower:
+        return "https://www.pokemon.com/us"
+    
+    # NEW: Handle PEPFAR queries
+    if "pepfar" in prompt_lower:
+        return "https://www.prepitweb.org/"
+    
+     # NEW: Handle DSD queries
+    if any(term in prompt_lower for term in ["dsd", "differentiated service delivery", "differentiated service"]):
+        return "https://dsd.unaids.org/?_gl=1*1it17e4*_gcl_au*MTY2OTY5Njk4OC4xNzMwMTQ1NzQy*_ga*OTMzOTg2OTc1LjE3MjE5MzU3MzE.*_ga_T7FBEZEXNC*MTczMTM0NTcyNy45LjEuMTczMTM0OTMxNS42MC4wLjA."
+    
+        # NEW: Handle Adolescent queries
+    if any(term in prompt_lower for term in ["adolescent", "adolescents", "youth", "young people"]):
+        return "https://adh.popcouncil.org/"
+    
+    if any(term in prompt_lower for term in ["behavioral", "behavioural", "behaviour", "behavior"]):
+        return "https://hivpreventioncoalition.unaids.org/en/resources/effectiveness-behavioural-interventions-prevent-hiv-compendium-evidence-2017-updated-2019"
+    
+    # Handle GPC scorecard requests
+    if any(term in prompt_lower for term in ["gpc scorecard", "gpc", "global prevention coalition", "scorecard"]):
+        # Extract country name - search in ORIGINAL prompt for proper capitalization
+        country_pattern = r'\b(?:for|in|of|about)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\b'
+        match = re.search(country_pattern, prompt)
+        
+        if match:
+            country = match.group(1).lower().replace(" ", "-")
+            return f"https://hivpreventioncoalition.unaids.org/en/scorecards/{country}"
+        
+        # Fallback: try to find country name even without capital letters
+        fallback_pattern = r'\b(?:for|in|of|about)\s+([a-z]+(?:\s+[a-z]+)?)\b'
+        fallback_match = re.search(fallback_pattern, prompt_lower)
+        
+        if fallback_match:
+            country = fallback_match.group(1).replace(" ", "-")
+            return f"https://hivpreventioncoalition.unaids.org/en/scorecards/{country}"
+        
+        # If "scorecard" appears but no country detected, return base URL
+        return "https://hivpreventioncoalition.unaids.org/en/scorecards"
+    
     ref_list = REFERENCE_URLS if (REFERENCE_URLS and isinstance(REFERENCE_URLS, (list, tuple))) else [
         "https://aidsinfo.unaids.org/",
         "https://www.who.int/data/gho",
@@ -322,7 +371,6 @@ def _pick_reference_url(prompt: str) -> str | None:
     if not ref_list:
         return None
 
-    q = _tokenize(prompt)
     prefers_unaids = any(t in q for t in {"prevalence", "estimate", "estimates", "hiv", "incidence", "ghana"})
 
     best_url, best_score = None, -1
@@ -338,7 +386,6 @@ def _pick_reference_url(prompt: str) -> str | None:
         if score > best_score:
             best_score, best_url = score, u
     return best_url or ref_list[0]
-
 
 # ---------- OpenSearch (optional COUNT support) ----------
 _os = None
@@ -850,6 +897,8 @@ def _stream_summary_from_chunks(connection_id: str, prompt: str, doc_url: str, h
     # --- streaming with inline linkification + stat emphasis ---
     pending = ""
     TAIL = 200  # keep a larger tail so we don't split numbers/percentages across chunks
+    
+    
     for ev in stream:
         if "contentBlockDelta" in ev:
             delta = (ev["contentBlockDelta"].get("delta") or {}).get("text") or ""
@@ -861,6 +910,26 @@ def _stream_summary_from_chunks(connection_id: str, prompt: str, doc_url: str, h
                     safe = _linkify_bare_urls(safe)
                     safe = _emphasize_stats(safe)
                     _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": safe})
+        
+        # ADD CITATION LOGIC HERE
+                if not citation_added and kb_sources and chars_sent > 100 and chars_sent < 400:
+                    # Find a good spot (end of sentence)
+                    sentence_end = None
+                    for i, char in enumerate(safe):
+                        if char in '.!?' and i < len(safe) - 1:
+                            sentence_end = i + 1
+                            break
+                    
+                    if sentence_end:
+                        first_source_url = kb_sources[0].get('url', '')
+                        citation_link = f"[[1]]({first_source_url})"
+                        safe = safe[:sentence_end] + citation_link + safe[sentence_end:]
+                        citation_added = True
+                
+                chars_sent += len(safe)
+                sent_parts.append(safe)
+                _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": safe})
+                
         elif "messageStop" in ev:
             break
         elif "internalServerException" in ev or "modelStreamErrorException" in ev \
@@ -903,25 +972,11 @@ def _end_with_error(connection_id: str, message: str, code: int = 500):
 
 # ---------- Model talk ----------
 _HIV_TOKENS = {
-    "hiv",
-    "aids",
-    "prep",
-    "pre-exposure",
-    "prophylaxis",
-    "incidence",
-    "prevalence",
-    "who",
-    "unaids",
-    "scorecards",
-    "gpc",
-    "statcompiler",
-    "dhis2",
-    "phia",
-    "agyw",
-    "key",
-    "populations",
-    "psat",
-    "shipp",
+    "hiv", "aids", "prep", "pre-exposure", "prophylaxis", "incidence", 
+    "prevalence", "who", "unaids", "scorecards", "gpc", "statcompiler", 
+    "dhis2", "phia", "agyw", "key", "populations", "psat", "shipp", "pepfar",
+    "dsd", "differentiated", "pokemon",
+    "adolescent", "adolescents","behavioral", "behavioural", "behaviour", "behavior" # Add these
 }
 
 def _should_use_kb(prompt: str) -> bool:
@@ -1091,6 +1146,9 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
                 if ref_domain.endswith("aidsinfo.unaids.org"):
                     prefix = "\n\nFor the most current official prevalence statistics, see "
                     link_md = _md_link(ref_url, "UNAIDS AIDSinfo")
+                elif "prepitweb.org" in ref_domain:
+                    prefix = "\n\nYou can also check the official source here: "
+                    link_md = _md_link(ref_url, "PEPFAR")
                 else:
                     prefix = "\n\nYou can also check the official source here: "
                     link_md = _md_link(ref_url, _title_for_url(ref_url))
@@ -1160,18 +1218,83 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
 def _os_count_keyword(keyword: str):
     return "Document counting is not implemented in this build.", "", 0
 
+# ---------- Feedback Handler ----------
+def _handle_feedback(event, connection_id):
+    """Save thumbs down feedback to S3"""
+    try:
+        rating = event.get("rating", "unknown")
+        
+        # Only save thumbs down
+        if rating != "thumbsdown":
+            logger.info(f"Ignoring feedback rating: {rating}")
+            return {"statusCode": 200, "body": "Feedback ignored (not thumbsdown)"}
+        
+        user_msg = event.get("userMessage", "")
+        bot_msg = event.get("botMessage", "")
+        timestamp = event.get("timestamp", "")
+        
+        if not (user_msg and bot_msg):
+            logger.warning("Feedback missing user or bot message")
+            return {"statusCode": 400, "body": "Missing message data"}
+        
+        # Create filename: YYYY-MM-DD-HH-MM-SS-thumbsdown.json
+        from datetime import datetime
+        dt = datetime.utcnow()
+        filename = dt.strftime("%Y-%m-%d-%H-%M-%S") + "-thumbsdown.json"
+        s3_key = f"feedback/{filename}"
+        
+        # Prepare feedback data
+        feedback_data = {
+            "timestamp": timestamp or dt.isoformat() + "Z",
+            "rating": rating,
+            "connection_id": connection_id,
+            "user_message": user_msg,
+            "bot_message": bot_msg
+        }
+        
+        # Write to S3
+        if s3 and cfg.S3_BUCKET_NAME:
+            s3.put_object(
+                Bucket=cfg.S3_BUCKET_NAME,
+                Key=s3_key,
+                Body=json.dumps(feedback_data, indent=2, ensure_ascii=False),
+                ContentType='application/json'
+            )
+            logger.info(f"Feedback saved: {s3_key}")
+            return {"statusCode": 200, "body": "Feedback saved"}
+        else:
+            logger.error("S3 not configured for feedback")
+            return {"statusCode": 500, "body": "S3 not configured"}
+            
+    except Exception as e:
+        logger.error(f"Feedback save error: {e}", exc_info=True)
+        return {"statusCode": 500, "body": "Feedback save failed"}
 
 def lambda_handler(event, _context):
     try:
         connection_id = event.get("connectionId")
-        prompt = (event.get("prompt") or "").strip()
-
+        
         if not connection_id:
             return {"statusCode": 400, "body": "Missing connectionId"}
-
+        
+        # Check for feedback action BEFORE checking for prompt
+        action = event.get("action")
+        if action == "submitFeedback":
+            return _handle_feedback(event, connection_id)
+        
+        # Now check for prompt (only needed for non-feedback actions)
+        prompt = (event.get("prompt") or "").strip()
         if not prompt:
             _end_with_error(connection_id, "Please provide a prompt.", 400)
             return {"statusCode": 400, "body": "Empty prompt"}
+        
+                # HARDCODED SUPPORT QUESTION - ADD THIS HERE
+        prompt_lower = prompt.lower()
+        if any(term in prompt_lower for term in ["contact for support", "who can i contact", "support contact", "contact info", "support email", "who do i contact"]):
+            answer = "The i2i team is here anytime! Please contact us at info.i2i@genesis-analytics.com"
+            _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": answer})
+            _send_ws(connection_id, {"type": "end", "statusCode": 200})
+            return {"statusCode": 200, "body": "SUPPORT_CONTACT_OK"}
 
         try:
             logger.info(f"START event meta: has_connection_id={bool(connection_id)}, prompt_len={len(prompt)}")
