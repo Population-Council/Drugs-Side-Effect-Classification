@@ -32,7 +32,10 @@ logger.info(
 # ---------- AWS clients ----------
 brt = boto3.client("bedrock-runtime", region_name=cfg.REGION)
 agent_rt = boto3.client("bedrock-agent-runtime", region_name=cfg.REGION)
-ws = boto3.client("apigatewaymanagementapi", endpoint_url=cfg.WEBSOCKET_CALLBACK_URL) if cfg.WEBSOCKET_CALLBACK_URL else None
+ws = boto3.client(
+    "apigatewaymanagementapi",
+    endpoint_url=cfg.WEBSOCKET_CALLBACK_URL
+) if cfg.WEBSOCKET_CALLBACK_URL else None
 s3 = boto3.client("s3") if cfg.S3_BUCKET_NAME else None
 
 MODEL_ID = cfg.INFERENCE_PROFILE_ID or cfg.LLM_MODEL_FALLBACK_ID
@@ -72,14 +75,20 @@ def _load_runtime_kbs(force=False):
         if txt and (force or etag != _RUNTIME_LAST_ETAG or _RUNTIME_KB is None):
             _RUNTIME_KB = json.loads(txt)
             _RUNTIME_LAST_ETAG = etag
-            logger.info(f"Loaded RUNTIME_KB key={rk_key} version={(_RUNTIME_KB.get('meta') or {}).get('version')}")
+            logger.info(
+                f"Loaded RUNTIME_KB key={rk_key} "
+                f"version={(_RUNTIME_KB.get('meta') or {}).get('version')}"
+            )
     pk_key = _get_env("PERSONAL_KB_KEY")  # e.g., runtime/personal_kb.json
     if pk_key:
         txt, etag = _get_s3_object_text(pk_key)
         if txt and (force or etag != _PERSONAL_LAST_ETAG or _PERSONAL_KB is None):
             _PERSONAL_KB = json.loads(txt)
             _PERSONAL_LAST_ETAG = etag
-            logger.info(f"Loaded PERSONAL_KB key={pk_key} version={(_PERSONAL_KB.get('meta') or {}).get('version')}")
+            logger.info(
+                f"Loaded PERSONAL_KB key={pk_key} "
+                f"version={(_PERSONAL_KB.get('meta') or {}).get('version')}"
+            )
 
 
 def _ensure_config_loaded():
@@ -161,7 +170,9 @@ def _title_for_url(url: str) -> str:
     try:
         p = urllib.parse.urlparse(url)
         host = (p.netloc or "").lower()
-        path_last = (p.path.rstrip("/").split("/")[-1] if p.path else "").replace("-", " ").strip()
+        path_last = (
+            p.path.rstrip("/").split("/")[-1] if p.path else ""
+        ).replace("-", " ").strip()
     except Exception:
         host, path_last = "", ""
 
@@ -173,10 +184,10 @@ def _title_for_url(url: str) -> str:
         "phia.icap.columbia.edu": "ICAP PHIA",
         "icap.columbia.edu": "ICAP at Columbia University",
     }
-    
+
     if "effectiveness-behavioural-interventions" in url:
         return "GPC Behavioural Data"
-    
+
     if host in domain_map:
         return domain_map[host]
     if path_last and "." not in path_last:
@@ -198,6 +209,7 @@ _BARE_URL_RE = re.compile(
     r"(?<!\]\()(https?://[^\s<>\[\]{}()'\"`]+)(?=$|\s|[>),.;:!?])",
     re.IGNORECASE,
 )
+
 
 def _linkify_bare_urls(text: str) -> str:
     if not text:
@@ -228,8 +240,10 @@ _CHAIN_RE = re.compile(
 # standalone numbers (ints/decimals with optional commas)
 _NUMBER_RE = re.compile(r"\b\d{1,3}(?:,\d{3})*(?:\.\d+)?\b")
 
+
 def _wrap_bold(s: str) -> str:
     return f"**{s}**"
+
 
 def _emphasize_stats(text: str) -> str:
     """
@@ -249,14 +263,13 @@ def _emphasize_stats(text: str) -> str:
     def process(seg: str) -> str:
         # 1) bold percentages FIRST (including chains like 73%-87%-81%)
         seg = _PERCENT_RE.sub(lambda m: _wrap_bold(m.group(0)), seg)
-        
+
         # 2) bold number chains (but skip if they contain %)
         def repl_chain(m: re.Match) -> str:
             full_match = m.group(0)
-            # Skip if this chain contains % (already handled above)
-            if '%' in full_match:
+            if "%" in full_match:
                 return full_match
-                
+
             first = m.group(1)
             rest = m.group(2)
             pieces = re.split(r"([–-])", rest)
@@ -265,7 +278,7 @@ def _emphasize_stats(text: str) -> str:
             while i < len(pieces):
                 token = pieces[i]
                 if token in ("-", "–"):
-                    num_raw = pieces[i+1] if i+1 < len(pieces) else ""
+                    num_raw = pieces[i + 1] if i + 1 < len(pieces) else ""
                     num_clean = num_raw.strip()
                     rebuilt.append(token)
                     if num_clean:
@@ -282,8 +295,8 @@ def _emphasize_stats(text: str) -> str:
         cursor = 0
         for m in _NUMBER_RE.finditer(seg):
             start, end = m.start(), m.end()
-            before = seg[max(0, start-2):start]
-            after = seg[end:end+2]
+            before = seg[max(0, start - 2):start]
+            after = seg[end:end + 2]
             if "**" in before or "**" in after or "%" in after[:1]:
                 tmp.append(seg[cursor:end])
                 cursor = end
@@ -301,6 +314,88 @@ def _emphasize_stats(text: str) -> str:
 
     return "".join(out)
 
+
+# ---------- Sentence-level footnote links ----------
+FOOTNOTE_FALLBACK_URL = (
+    "https://media.cnn.com/api/v1/images/stellar/prod/"
+    "210226041654-05-pokemon-anniversary-design.jpg"
+    "?q=w_1920,h_1080,x_0,y_0,c_fill"
+)
+
+
+def _annotate_sentences_with_links(
+    text: str,
+    url: str,
+    start_index: int = 1,
+) -> tuple[str, int]:
+    """
+    Add a SINGLE clickable [[1]](url) marker after either the 2nd or 3rd sentence
+    (chosen randomly), outside existing markdown links.
+
+    - Sentences are detected by '.', '!' or '?'.
+    - If fewer than 2 sentences are found, text is returned unchanged.
+    - The marker number is always `start_index` (we pass 1).
+    """
+    if not text or not url:
+        return text, start_index
+
+    parts = _LINK_BLOCK_RE.split(text)
+    links = _LINK_BLOCK_RE.findall(text)
+
+    sentence_positions = []  # list of (segment_index, local_position)
+
+    # Collect sentence end positions outside markdown links
+    for seg_idx, seg in enumerate(parts):
+        i = 0
+        n = len(seg)
+        while i < n:
+            ch = seg[i]
+
+            if ch in ".!?":
+                # --- DO NOT split on decimals like 12.20 ---
+                if ch == "." and i > 0 and i + 1 < n and seg[i-1].isdigit() and seg[i+1].isdigit():
+                    i += 1
+                    continue
+
+                # (Optional) collapse ellipses "..." into a single non-terminator
+                if ch == "." and i + 2 < n and seg[i+1] == "." and seg[i+2] == ".":
+                    i += 3
+                    continue
+
+                j = i + 1
+                # include trailing quotes/brackets directly after punctuation
+                while j < n and seg[j] in ['"', "'", "”", "’", ")", "]"]:
+                    j += 1
+
+                sentence_positions.append((seg_idx, j))
+                i = j
+                continue
+
+            i += 1
+
+    # Need at least 2 sentences to target 2nd or 3rd
+    if len(sentence_positions) < 2:
+        return text, start_index
+
+    # Candidates: 2nd or 3rd sentence (if 3 exists)
+    candidates = sentence_positions[1:3]
+    seg_idx, pos = random.choice(candidates)
+
+    # Insert [[1]](url) after chosen sentence
+    chosen_seg = parts[seg_idx]
+    marker = f" [[{start_index}]]({url})"
+    parts[seg_idx] = chosen_seg[:pos] + marker + chosen_seg[pos:]
+
+    # Rebuild full text with links
+    out = []
+    for i, seg in enumerate(parts):
+        out.append(seg)
+        if i < len(links):
+            out.append(links[i])
+
+    return "".join(out), start_index + 1
+
+
 # ---------- Suggested reference picking ----------
 def _tokenize(text: str) -> set[str]:
     return set(re.findall(r"[a-z0-9]+", text.lower()))
@@ -317,53 +412,61 @@ def _url_tokens(u: str) -> set[str]:
 
 
 def _pick_reference_url(prompt: str) -> str | None:
-    
-    
-    
     q = _tokenize(prompt)
     prompt_lower = prompt.lower()
-    
-        # TEST: Handle Pokemon queries (for testing)
+
+    # TEST: Handle Pokemon queries (for testing)
     if "pokemon" in prompt_lower or "pikachu" in prompt_lower:
         return "https://www.pokemon.com/us"
-    
+
     # NEW: Handle PEPFAR queries
     if "pepfar" in prompt_lower:
         return "https://www.prepitweb.org/"
-    
-     # NEW: Handle DSD queries
-    if any(term in prompt_lower for term in ["dsd", "differentiated service delivery", "differentiated service"]):
-        return "https://dsd.unaids.org/?_gl=1*1it17e4*_gcl_au*MTY2OTY5Njk4OC4xNzMwMTQ1NzQy*_ga*OTMzOTg2OTc1LjE3MjE5MzU3MzE.*_ga_T7FBEZEXNC*MTczMTM0NTcyNy45LjEuMTczMTM0OTMxNS42MC4wLjA."
-    
-        # NEW: Handle Adolescent queries
+
+    # NEW: Handle DSD queries
+    if any(term in prompt_lower for term in [
+        "dsd", "differentiated service delivery", "differentiated service"
+    ]):
+        return (
+            "https://dsd.unaids.org/?_gl=1*1it17e4*_gcl_au*MTY2OTY5Njk4OC4xNzMwMTQ1NzQy"
+            "*_ga*OTMzOTg2OTc1LjE3MjE5MzU3MzE.*_ga_T7FBEZEXNC*MTczMTM0NTcyNy45LjEu"
+            "MTczMTM0OTMxNS42MC4wLjA."
+        )
+
+    # NEW: Handle Adolescent queries
     if any(term in prompt_lower for term in ["adolescent", "adolescents", "youth", "young people"]):
         return "https://adh.popcouncil.org/"
-    
+
     if any(term in prompt_lower for term in ["behavioral", "behavioural", "behaviour", "behavior"]):
-        return "https://hivpreventioncoalition.unaids.org/en/resources/effectiveness-behavioural-interventions-prevent-hiv-compendium-evidence-2017-updated-2019"
-    
+        return (
+            "https://hivpreventioncoalition.unaids.org/en/resources/"
+            "effectiveness-behavioural-interventions-prevent-hiv-compendium-evidence-2017-updated-2019"
+        )
+
     # Handle GPC scorecard requests
     if any(term in prompt_lower for term in ["gpc scorecard", "gpc", "global prevention coalition", "scorecard"]):
         # Extract country name - search in ORIGINAL prompt for proper capitalization
         country_pattern = r'\b(?:for|in|of|about)\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z]+)?)\b'
         match = re.search(country_pattern, prompt)
-        
+
         if match:
             country = match.group(1).lower().replace(" ", "-")
             return f"https://hivpreventioncoalition.unaids.org/en/scorecards/{country}"
-        
+
         # Fallback: try to find country name even without capital letters
         fallback_pattern = r'\b(?:for|in|of|about)\s+([a-z]+(?:\s+[a-z]+)?)\b'
         fallback_match = re.search(fallback_pattern, prompt_lower)
-        
+
         if fallback_match:
             country = fallback_match.group(1).replace(" ", "-")
             return f"https://hivpreventioncoalition.unaids.org/en/scorecards/{country}"
-        
+
         # If "scorecard" appears but no country detected, return base URL
         return "https://hivpreventioncoalition.unaids.org/en/scorecards"
-    
-    ref_list = REFERENCE_URLS if (REFERENCE_URLS and isinstance(REFERENCE_URLS, (list, tuple))) else [
+
+    ref_list = REFERENCE_URLS if (
+        REFERENCE_URLS and isinstance(REFERENCE_URLS, (list, tuple))
+    ) else [
         "https://aidsinfo.unaids.org/",
         "https://www.who.int/data/gho",
         "https://phia.icap.columbia.edu/",
@@ -371,7 +474,9 @@ def _pick_reference_url(prompt: str) -> str | None:
     if not ref_list:
         return None
 
-    prefers_unaids = any(t in q for t in {"prevalence", "estimate", "estimates", "hiv", "incidence", "ghana"})
+    prefers_unaids = any(
+        t in q for t in {"prevalence", "estimate", "estimates", "hiv", "incidence", "ghana"}
+    )
 
     best_url, best_score = None, -1
     for u in ref_list:
@@ -386,6 +491,7 @@ def _pick_reference_url(prompt: str) -> str | None:
         if score > best_score:
             best_score, best_url = score, u
     return best_url or ref_list[0]
+
 
 # ---------- OpenSearch (optional COUNT support) ----------
 _os = None
@@ -424,6 +530,7 @@ _COUNT_STARTERS = (
     "count documents mentioning",
     "count documents about",
 )
+
 
 def _looks_like_count(q: str) -> bool:
     ql = _norm(q)
@@ -482,7 +589,11 @@ def _doc_url_from_s3_uri(s3_uri: str) -> str:
             try:
                 return s3.generate_presigned_url(
                     "get_object",
-                    Params={"Bucket": cfg.S3_BUCKET_NAME, "Key": key, "ResponseContentDisposition": "inline"},
+                    Params={
+                        "Bucket": cfg.S3_BUCKET_NAME,
+                        "Key": key,
+                        "ResponseContentDisposition": "inline"
+                    },
                     ExpiresIn=3600,
                 )
             except Exception as e:
@@ -559,14 +670,21 @@ def _kb_retrieve(prompt: str, kb_id: str, k: int = 10) -> tuple[str, list[dict]]
             loc = (r.get("location") or {}).get("s3Location") or {}
             s3_uri = loc.get("uri")
             score = r.get("score")
-            page = (r.get("metadata") or {}).get("x-amz-bedrock-kb-document-page-number")
+            page = (
+                (r.get("metadata") or {})
+                .get("x-amz-bedrock-kb-document-page-number")
+            )
             url = s3_uri
             if s3_uri and cfg.S3_BUCKET_NAME and s3 and s3_uri.startswith(f"s3://{cfg.S3_BUCKET_NAME}/"):
                 try:
                     key = s3_uri.split(f"s3://{cfg.S3_BUCKET_NAME}/", 1)[1]
                     url = s3.generate_presigned_url(
                         "get_object",
-                        Params={"Bucket": cfg.S3_BUCKET_NAME, "Key": key, "ResponseContentDisposition": "inline"},
+                        Params={
+                            "Bucket": cfg.S3_BUCKET_NAME,
+                            "Key": key,
+                            "ResponseContentDisposition": "inline"
+                        },
                         ExpiresIn=3600,
                     )
                 except Exception as e:
@@ -580,7 +698,8 @@ def _kb_retrieve(prompt: str, kb_id: str, k: int = 10) -> tuple[str, list[dict]]
                 src["label"] = _clean_filename(url)
             sources_raw.append(src)
         deduped = _dedupe_sources_best(sources_raw)
-        return ("\n\n".join(snippets).strip(), deduped[:2])
+        # return up to 6 sources
+        return ("\n\n".join(snippets).strip(), deduped[:3])
     except ClientError as e:
         logger.error(f"KB retrieve ClientError: {e}")
         return "", []
@@ -620,12 +739,21 @@ def _collect_doc_snippets(prompt: str, k: int = 20) -> dict:
             if not s3_uri or not txt:
                 continue
             url = s3_uri
-            if s3_uri.startswith("s3://") and s3 and cfg.S3_BUCKET_NAME and s3_uri.startswith(f"s3://{cfg.S3_BUCKET_NAME}/"):
+            if (
+                s3_uri.startswith("s3://")
+                and s3
+                and cfg.S3_BUCKET_NAME
+                and s3_uri.startswith(f"s3://{cfg.S3_BUCKET_NAME}/")
+            ):
                 try:
                     key = s3_uri.split(f"s3://{cfg.S3_BUCKET_NAME}/", 1)[1]
                     url = s3.generate_presigned_url(
                         "get_object",
-                        Params={"Bucket": cfg.S3_BUCKET_NAME, "Key": key, "ResponseContentDisposition": "inline"},
+                        Params={
+                            "Bucket": cfg.S3_BUCKET_NAME,
+                            "Key": key,
+                            "ResponseContentDisposition": "inline"
+                        },
                         ExpiresIn=3600,
                     )
                 except Exception as e:
@@ -633,7 +761,11 @@ def _collect_doc_snippets(prompt: str, k: int = 20) -> dict:
             key = _basename_from_url(s3_uri).lower()
             if key in out:
                 continue
-            out[key] = {"snippet": txt, "url": url, "label": _clean_filename(s3_uri)}
+            out[key] = {
+                "snippet": txt,
+                "url": url,
+                "label": _clean_filename(s3_uri),
+            }
         return out
     except Exception as e:
         logger.warning(f"_collect_doc_snippets error: {e}")
@@ -644,7 +776,10 @@ def _collect_doc_snippets(prompt: str, k: int = 20) -> dict:
 def _extract_text_from_converse(resp) -> str:
     try:
         parts = (resp.get("output") or {}).get("message", {}).get("content", [])
-        return "".join(p.get("text", "") for p in parts if isinstance(p, dict) and "text" in p)
+        return "".join(
+            p.get("text", "") for p in parts
+            if isinstance(p, dict) and "text" in p
+        )
     except Exception:
         return ""
 
@@ -653,7 +788,9 @@ def _model_complete_text(messages, system=None) -> str:
     try:
         kwargs = {"modelId": MODEL_ID, "messages": messages}
         if system:
-            kwargs["system"] = [{"text": system}] if isinstance(system, str) else system
+            kwargs["system"] = (
+                [{"text": system}] if isinstance(system, str) else system
+            )
         resp = brt.converse(**kwargs)
         text = _extract_text_from_converse(resp)
         if text:
@@ -661,7 +798,11 @@ def _model_complete_text(messages, system=None) -> str:
     except Exception as e:
         logger.warning(f"converse failed, falling back to stream: {e}")
     try:
-        resp = brt.converse_stream(modelId=MODEL_ID, messages=messages, system=([{"text": system}] if system else None))
+        resp = brt.converse_stream(
+            modelId=MODEL_ID,
+            messages=messages,
+            system=([{"text": system}] if system else None)
+        )
         stream = resp.get("stream")
         acc = []
         for ev in stream:
@@ -717,7 +858,11 @@ def _gen_relevance_reasons_via_model(user_prompt: str, doc_snips: dict) -> dict:
     obj = _safe_json_from_text(txt)
     if "reasons" in obj and isinstance(obj["reasons"], dict):
         return {k: (v or "").strip() for k, v in obj["reasons"].items()}
-    return {k: (v or "").strip() for k, v in obj.items() if isinstance(v, str)}
+    return {
+        k: (v or "").strip()
+        for k, v in obj.items()
+        if isinstance(v, str)
+    }
 
 
 # --- Lead-in generators for the “Sources at a glance” block ---
@@ -729,7 +874,8 @@ def _gen_sources_leadin_via_model(user_prompt: str) -> str:
     )
     user_text = (
         f"User question:\n{user_prompt}\n\n"
-        "Return only the single statement line (e.g., 'Here are a few additional resources you might find useful.')."
+        "Return only the single statement line (e.g., "
+        "'Here are a few additional resources you might find useful.')."
     )
     messages = [{"role": "user", "content": [{"text": user_text}]}]
     out = (_model_complete_text(messages, system=system_text) or "").strip()
@@ -767,7 +913,9 @@ def _pick_sources_leadin(user_prompt: str) -> str:
     toks = set(re.findall(r"[a-z0-9\-]+", _norm(user_prompt)))
     has_ng = "nigeria" in toks or "ng" in toks
     has_prep = any(t in toks for t in ("prep", "pre-exposure", "preexposure"))
-    is_rollout_budget = any(t in toks for t in ("rollout", "budget", "planning", "cost", "costing"))
+    is_rollout_budget = any(
+        t in toks for t in ("rollout", "budget", "planning", "cost", "costing")
+    )
     if has_ng and has_prep and is_rollout_budget:
         return _random_sources_leadin()
     try:
@@ -778,17 +926,29 @@ def _pick_sources_leadin(user_prompt: str) -> str:
 
 
 # ---------- Varied, context-aware follow-up ----------
-def _pick_follow_up(user_prompt: str, *, has_ref_site: bool, has_sources: bool, mode: str = "talk") -> str:
+def _pick_follow_up(
+    user_prompt: str,
+    *,
+    has_ref_site: bool,
+    has_sources: bool,
+    mode: str = "talk"
+) -> str:
     """
     Returns a short, varied follow-up line tailored to the context.
     - has_ref_site: we suggested a specific site/tool link
     - has_sources: we attached sources/snippets
     - mode: "summary" (PDF/doc summarization flow) or "talk" (normal Q&A)
-    Avoids phrasing like 'pull/extract numbers'; uses 'concise summary of the data' instead.
     """
     q = (_norm(user_prompt) or "")
-    wants_how = any(t in q for t in ["how do i", "how to", "navigate", "where do i find", "use the site"])
-    wants_numbers = any(t in q for t in ["prevalence", "incidence", "rate", "estimate", "trend", "number", "count", "data", "stats"])
+    wants_how = any(
+        t in q
+        for t in ["how do i", "how to", "navigate", "where do i find", "use the site"]
+    )
+    wants_numbers = any(
+        t in q
+        for t in ["prevalence", "incidence", "rate", "estimate", "trend",
+                  "number", "count", "data", "stats"]
+    )
 
     lines_site = [
         "Want a quick tour of the site, or a concise summary of the data?",
@@ -845,24 +1005,43 @@ def _extract_first_url_from_history(history_raw) -> str | None:
 
 
 # ---------- Summarization (PDF) ----------
-def _kb_retrieve_for_doc(prompt: str, doc_url_hint: str, k: int = 20) -> tuple[str, list[dict]]:
+def _kb_retrieve_for_doc(
+    prompt: str,
+    doc_url_hint: str,
+    k: int = 20
+) -> tuple[str, list[dict]]:
     all_text, all_sources = _kb_retrieve(prompt, cfg.KNOWLEDGE_BASE_ID, k)
     if not (all_text or all_sources):
         return "", []
     hint = _basename_from_url(doc_url_hint)
     bias_prompt = f"{hint} {prompt}".strip()
     text2, sources2 = _kb_retrieve(bias_prompt, cfg.KNOWLEDGE_BASE_ID, k)
-    preferred_sources = [s for s in (sources2 or []) if _basename_from_url(s.get('url') or "").lower() == hint.lower()]
+    preferred_sources = [
+        s for s in (sources2 or [])
+        if _basename_from_url(s.get('url') or "").lower() == hint.lower()
+    ]
     if preferred_sources:
         return text2, preferred_sources
-    filtered_sources = [s for s in (all_sources or []) if _basename_from_url(s.get('url') or "").lower() == hint.lower()]
+    filtered_sources = [
+        s for s in (all_sources or [])
+        if _basename_from_url(s.get('url') or "").lower() == hint.lower()
+    ]
     return (all_text if filtered_sources else all_text), (filtered_sources or all_sources)
 
 
-def _stream_summary_from_chunks(connection_id: str, prompt: str, doc_url: str, history_messages: list[dict] | None = None):
+def _stream_summary_from_chunks(
+    connection_id: str,
+    prompt: str,
+    doc_url: str,
+    history_messages: list[dict] | None = None
+):
     kb_text, kb_sources = _kb_retrieve_for_doc(prompt, doc_url, k=20)
     if not kb_text:
-        _end_with_error(connection_id, "I couldn’t retrieve that document’s text from the knowledge base.", 404)
+        _end_with_error(
+            connection_id,
+            "I couldn’t retrieve that document’s text from the knowledge base.",
+            404,
+        )
         return
 
     user_text = (
@@ -880,13 +1059,21 @@ def _stream_summary_from_chunks(connection_id: str, prompt: str, doc_url: str, h
     if history_messages:
         messages.extend(history_messages)
     messages.append({"role": "user", "content": [{"text": user_text}]})
-    system = [{"text": (cfg.SYSTEM_PROMPT or "") + "\nBe accurate and concise."}] if cfg.SYSTEM_PROMPT else [{"text": "Be accurate and concise."}]
+    system = (
+        [{"text": (cfg.SYSTEM_PROMPT or "") + "\nBe accurate and concise."}]
+        if cfg.SYSTEM_PROMPT else
+        [{"text": "Be accurate and concise."}]
+    )
 
     try:
         resp = brt.converse_stream(modelId=MODEL_ID, messages=messages, system=system)
     except ClientError as e:
         logger.error(f"Bedrock ClientError (summary): {e}")
-        _end_with_error(connection_id, f"Model error: {e.response.get('Error',{}).get('Code','Unknown')}", 500)
+        _end_with_error(
+            connection_id,
+            f"Model error: {e.response.get('Error', {}).get('Code', 'Unknown')}",
+            500,
+        )
         return
 
     stream = resp.get("stream")
@@ -894,11 +1081,9 @@ def _stream_summary_from_chunks(connection_id: str, prompt: str, doc_url: str, h
         _end_with_error(connection_id, "Model stream not available.", 500)
         return
 
-    # --- streaming with inline linkification + stat emphasis ---
     pending = ""
-    TAIL = 200  # keep a larger tail so we don't split numbers/percentages across chunks
-    
-    
+    TAIL = 200  # keep a tail so we don't split numbers/percentages across chunks
+
     for ev in stream:
         if "contentBlockDelta" in ev:
             delta = (ev["contentBlockDelta"].get("delta") or {}).get("text") or ""
@@ -909,33 +1094,30 @@ def _stream_summary_from_chunks(connection_id: str, prompt: str, doc_url: str, h
                 if safe:
                     safe = _linkify_bare_urls(safe)
                     safe = _emphasize_stats(safe)
-                    _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": safe})
-        
-        # ADD CITATION LOGIC HERE
-                if not citation_added and kb_sources and chars_sent > 100 and chars_sent < 400:
-                    # Find a good spot (end of sentence)
-                    sentence_end = None
-                    for i, char in enumerate(safe):
-                        if char in '.!?' and i < len(safe) - 1:
-                            sentence_end = i + 1
-                            break
-                    
-                    if sentence_end:
-                        first_source_url = kb_sources[0].get('url', '')
-                        citation_link = f"[[1]]({first_source_url})"
-                        safe = safe[:sentence_end] + citation_link + safe[sentence_end:]
-                        citation_added = True
-                
-                chars_sent += len(safe)
-                sent_parts.append(safe)
-                _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": safe})
-                
+                    _send_ws(
+                        connection_id,
+                        {
+                            "type": "delta",
+                            "statusCode": 200,
+                            "format": "markdown",
+                            "text": safe,
+                        },
+                    )
+
         elif "messageStop" in ev:
             break
-        elif "internalServerException" in ev or "modelStreamErrorException" in ev \
-             or "throttlingException" in ev or "validationException" in ev:
-            err = ev.get("internalServerException") or ev.get("modelStreamErrorException") \
-                or ev.get("throttlingException") or ev.get("validationException")
+        elif (
+            "internalServerException" in ev
+            or "modelStreamErrorException" in ev
+            or "throttlingException" in ev
+            or "validationException" in ev
+        ):
+            err = (
+                ev.get("internalServerException")
+                or ev.get("modelStreamErrorException")
+                or ev.get("throttlingException")
+                or ev.get("validationException")
+            )
             logger.error(f"Stream error (summary): {err}")
             _end_with_error(connection_id, "Model streaming error.", 500)
             return
@@ -943,11 +1125,32 @@ def _stream_summary_from_chunks(connection_id: str, prompt: str, doc_url: str, h
     if pending:
         tail = _linkify_bare_urls(pending)
         tail = _emphasize_stats(tail)
-        _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": tail})
+        _send_ws(
+            connection_id,
+            {
+                "type": "delta",
+                "statusCode": 200,
+                "format": "markdown",
+                "text": tail,
+            },
+        )
 
     try:
-        follow_up = _pick_follow_up(prompt, has_ref_site=False, has_sources=bool(kb_sources), mode="summary")
-        _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": f"\n\n{follow_up}\n"})
+        follow_up = _pick_follow_up(
+            prompt,
+            has_ref_site=False,
+            has_sources=bool(kb_sources),
+            mode="summary",
+        )
+        _send_ws(
+            connection_id,
+            {
+                "type": "delta",
+                "statusCode": 200,
+                "format": "markdown",
+                "text": f"\n\n{follow_up}\n",
+            },
+        )
     except Exception as e:
         logger.warning(f"Failed to append follow-up after summary: {e}")
 
@@ -960,7 +1163,10 @@ def _send_ws(connection_id: str, payload: dict):
         logger.error("WebSocket client not configured (URL env missing).")
     else:
         try:
-            ws.post_to_connection(ConnectionId=connection_id, Data=json.dumps(payload))
+            ws.post_to_connection(
+                ConnectionId=connection_id,
+                Data=json.dumps(payload)
+            )
         except ClientError as e:
             logger.error(f"WebSocket post_to_connection error: {e}")
 
@@ -972,12 +1178,13 @@ def _end_with_error(connection_id: str, message: str, code: int = 500):
 
 # ---------- Model talk ----------
 _HIV_TOKENS = {
-    "hiv", "aids", "prep", "pre-exposure", "prophylaxis", "incidence", 
-    "prevalence", "who", "unaids", "scorecards", "gpc", "statcompiler", 
+    "hiv", "aids", "prep", "pre-exposure", "prophylaxis", "incidence",
+    "prevalence", "who", "unaids", "scorecards", "gpc", "statcompiler",
     "dhis2", "phia", "agyw", "key", "populations", "psat", "shipp", "pepfar",
     "dsd", "differentiated", "pokemon",
-    "adolescent", "adolescents","behavioral", "behavioural", "behaviour", "behavior" # Add these
+    "adolescent", "adolescents", "behavioral", "behavioural", "behaviour", "behavior"
 }
+
 
 def _should_use_kb(prompt: str) -> bool:
     toks = set(re.findall(r"[a-z0-9\-]+", _norm(prompt)))
@@ -996,7 +1203,7 @@ def _runtime_relevant_resources(prompt: str, top_n: int = 4) -> list[dict]:
             r.get("summary", ""),
             " ".join(r.get("when_to_use", []) or []),
             " ".join(r.get("match_terms", []) or []),
-            r.get("category", "")
+            r.get("category", ""),
         ]).lower()
         r_tokens = set(re.findall(r"[a-z0-9\-]+", text))
         overlap = len(q_tokens.intersection(r_tokens))
@@ -1007,7 +1214,7 @@ def _runtime_relevant_resources(prompt: str, top_n: int = 4) -> list[dict]:
                 overlap += 1
         if "prep" in q_tokens and "prep" in r_tokens:
             overlap += 2
-        if "testing" in q_tokens and "statcompiler" in r.get("name","").lower():
+        if "testing" in q_tokens and "statcompiler" in r.get("name", "").lower():
             overlap += 1
         if overlap > 0:
             scored.append((overlap, r))
@@ -1045,7 +1252,11 @@ def _build_runtime_context(prompt: str) -> str:
         return ""
 
 
-def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: list[dict] | None = None):
+def _talk_with_optional_kb(
+    connection_id: str,
+    prompt: str,
+    history_messages: list[dict] | None = None
+):
     use_kb = _should_use_kb(prompt)
     ref_url = None
     if use_kb:
@@ -1086,15 +1297,36 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
     messages.append({"role": "user", "content": [{"text": user_text}]})
     system = [{"text": cfg.SYSTEM_PROMPT}] if cfg.SYSTEM_PROMPT else None
 
-    sent_parts: list[str] = []
-    pending = ""
-    TAIL = 200
+    # Precompute a candidate URL for sentence-level footnotes:
+    # 1) first KB source (if any)
+    # 2) otherwise ref_url
+    # 3) otherwise fallback (Pokémon)
+    pre_sources = []
+    if use_kb and kb_sources:
+        pre_sources.extend(kb_sources)
+    if use_kb and ref_url and not pre_sources:
+        pre_sources.append(
+            {"url": ref_url, "label": _title_for_url(ref_url)}
+        )
+    pre_sources = _dedupe_sources_best(pre_sources)
+    footnote_url = None
+    if pre_sources:
+        footnote_url = (pre_sources[0].get("url") or "").strip()
+    if not footnote_url:
+        footnote_url = FOOTNOTE_FALLBACK_URL
+
+    # Buffer full model output, then format + annotate with sentence footnotes
+    full_answer_raw_parts: list[str] = []
 
     try:
         resp = brt.converse_stream(modelId=MODEL_ID, messages=messages, system=system)
     except ClientError as e:
         logger.error(f"Bedrock ClientError: {e}")
-        _end_with_error(connection_id, f"Model error: {e.response.get('Error',{}).get('Code','Unknown')}", 500)
+        _end_with_error(
+            connection_id,
+            f"Model error: {e.response.get('Error', {}).get('Code', 'Unknown')}",
+            500,
+        )
         return
 
     stream = resp.get("stream")
@@ -1105,34 +1337,52 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
     for ev in stream:
         if "contentBlockDelta" in ev:
             delta = (ev["contentBlockDelta"].get("delta") or {}).get("text") or ""
-            pending += delta
-            if len(pending) > 600 or "\n" in delta:
-                safe = pending[:-TAIL]
-                pending = pending[-TAIL:]
-                if safe:
-                    safe = _linkify_bare_urls(safe)
-                    safe = _emphasize_stats(safe)
-                    sent_parts.append(safe)
-                    _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": safe})
+            if delta:
+                full_answer_raw_parts.append(delta)
 
         elif "messageStop" in ev:
             break
-        elif "internalServerException" in ev or "modelStreamErrorException" in ev \
-             or "throttlingException" in ev or "validationException" in ev:
-            err = ev.get("internalServerException") or ev.get("modelStreamErrorException") \
-                or ev.get("throttlingException") or ev.get("validationException")
+        elif (
+            "internalServerException" in ev
+            or "modelStreamErrorException" in ev
+            or "throttlingException" in ev
+            or "validationException" in ev
+        ):
+            err = (
+                ev.get("internalServerException")
+                or ev.get("modelStreamErrorException")
+                or ev.get("throttlingException")
+                or ev.get("validationException")
+            )
             logger.error(f"Stream error: {err}")
             _end_with_error(connection_id, "Model streaming error.", 500)
             return
 
-    if pending:
-        tail = _linkify_bare_urls(pending)
-        tail = _emphasize_stats(tail)
-        sent_parts.append(tail)
-        _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": tail})
+    full_answer_raw = "".join(full_answer_raw_parts)
 
-    full_summary = "".join(sent_parts)
+    # Existing formatting: linkify bare URLs + emphasize stats
+    full_summary = _linkify_bare_urls(full_answer_raw)
+    full_summary = _emphasize_stats(full_summary)
 
+    # Add a single clickable marker [[1]](first-source-url) on the 2nd or 3rd sentence
+    full_summary, _ = _annotate_sentences_with_links(
+        full_summary,
+        footnote_url,
+        start_index=1,
+    )
+
+    # Send formatted answer text
+    _send_ws(
+        connection_id,
+        {
+            "type": "delta",
+            "statusCode": 200,
+            "format": "markdown",
+            "text": full_summary,
+        },
+    )
+
+    # --- Inline suggestion of main ref_url (separate from footnotes) ---
     try:
         if ref_url:
             ref_domain = urllib.parse.urlparse(ref_url).netloc.lower()
@@ -1140,7 +1390,7 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
             already_linked_same_domain = bool(re.search(
                 r"\]\(\s*https?://[^)]*" + re.escape(ref_domain) + r"[^)]*\)",
                 full_summary or "",
-                flags=re.IGNORECASE
+                flags=re.IGNORECASE,
             ))
             if not (already_contains_ref or already_linked_same_domain):
                 if ref_domain.endswith("aidsinfo.unaids.org"):
@@ -1152,64 +1402,93 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
                 else:
                     prefix = "\n\nYou can also check the official source here: "
                     link_md = _md_link(ref_url, _title_for_url(ref_url))
-                _send_ws(connection_id, {
-                    "type": "delta",
-                    "statusCode": 200,
-                    "format": "markdown",
-                    "text": prefix + link_md + "\n"
-                })
+                _send_ws(
+                    connection_id,
+                    {
+                        "type": "delta",
+                        "statusCode": 200,
+                        "format": "markdown",
+                        "text": prefix + link_md + "\n",
+                    },
+                )
     except Exception as e:
         logger.warning(f"Inline suggested reference append error: {e}")
 
+    # Build final sources block (may include more than first source)
     sources_to_send = []
     if use_kb and kb_sources:
         sources_to_send.extend(kb_sources)
     if use_kb and ref_url and not sources_to_send:
-        sources_to_send.append({"url": ref_url, "label": _title_for_url(ref_url)})
+        sources_to_send.append(
+            {"url": ref_url, "label": _title_for_url(ref_url)}
+        )
     sources_to_send = _dedupe_sources_best(sources_to_send)
 
-    if sources_to_send:
+    # Do NOT show the first one – it's reserved for the [1] link.
+    visible_sources = sources_to_send[1:] if len(sources_to_send) > 1 else []
+
+    if visible_sources:
         doc_snips_all = _collect_doc_snippets(prompt, k=20) if use_kb else {}
         want_keys = set()
-        for s in sources_to_send:
+        for s in visible_sources:
             url = (s.get("url") or "").strip()
             if url:
                 want_keys.add(_basename_from_url(url).lower())
         doc_snips = {k: v for k, v in doc_snips_all.items() if k in want_keys}
-        reasons = _gen_relevance_reasons_via_model(prompt, doc_snips) if doc_snips else {}
+        reasons = (
+            _gen_relevance_reasons_via_model(prompt, doc_snips)
+            if doc_snips else
+            {}
+        )
 
         inline_lines = []
-        for s in (sources_to_send or []):
+        for s in visible_sources:
             url = (s.get("url") or "").strip()
-            base_label = (s.get("label") or _title_for_url(url) or "Source").strip()
+            base_label = (
+                s.get("label") or _title_for_url(url) or "Source"
+            ).strip()
             key = _basename_from_url(url).lower() if url else base_label.lower()
             reason = (reasons.get(key) or "").strip()
             if url:
                 if reason:
-                    inline_lines.append(f"- {_md_link(url, base_label + ' ⬈')} - {reason}")
+                    inline_lines.append(
+                        f"- {_md_link(url, base_label + ' ⬈')} - {reason}"
+                    )
                 else:
-                    inline_lines.append(f"- relevant to the question — {_md_link(url, base_label)}")
+                    inline_lines.append(
+                        f"- relevant to the question — {_md_link(url, base_label)}"
+                    )
 
         if inline_lines:
             try:
                 lead_in = _pick_sources_leadin(prompt)
             except Exception as e:
-                logger.warning(f"Lead-in generation failed, using random fallback: {e}")
+                logger.warning(
+                    f"Lead-in generation failed, using random fallback: {e}"
+                )
                 lead_in = _random_sources_leadin()
 
-            follow_up = _pick_follow_up(prompt, has_ref_site=bool(ref_url), has_sources=True, mode="talk")
+            follow_up = _pick_follow_up(
+                prompt,
+                has_ref_site=bool(ref_url),
+                has_sources=True,
+                mode="talk",
+            )
             sources_block = (
                 "\n\n&nbsp;\n\n\n"
-                f"_{lead_in}_\n" +
-                "\n".join(inline_lines) +
-                f"\n\n{follow_up}\n"
+                f"_{lead_in}_\n"
+                + "\n".join(inline_lines)
+                + f"\n\n{follow_up}\n"
             )
-            _send_ws(connection_id, {
-                "type": "delta",
-                "statusCode": 200,
-                "format": "markdown",
-                "text": sources_block
-            })
+            _send_ws(
+                connection_id,
+                {
+                    "type": "delta",
+                    "statusCode": 200,
+                    "format": "markdown",
+                    "text": sources_block,
+                },
+            )
 
     _send_ws(connection_id, {"type": "end", "statusCode": 200})
 
@@ -1218,86 +1497,112 @@ def _talk_with_optional_kb(connection_id: str, prompt: str, history_messages: li
 def _os_count_keyword(keyword: str):
     return "Document counting is not implemented in this build.", "", 0
 
+
 # ---------- Feedback Handler ----------
 def _handle_feedback(event, connection_id):
     """Save thumbs down feedback to S3"""
     try:
         rating = event.get("rating", "unknown")
-        
+
         # Only save thumbs down
         if rating != "thumbsdown":
             logger.info(f"Ignoring feedback rating: {rating}")
             return {"statusCode": 200, "body": "Feedback ignored (not thumbsdown)"}
-        
+
         user_msg = event.get("userMessage", "")
         bot_msg = event.get("botMessage", "")
         timestamp = event.get("timestamp", "")
-        
+
         if not (user_msg and bot_msg):
             logger.warning("Feedback missing user or bot message")
             return {"statusCode": 400, "body": "Missing message data"}
-        
+
         # Create filename: YYYY-MM-DD-HH-MM-SS-thumbsdown.json
         from datetime import datetime
         dt = datetime.utcnow()
         filename = dt.strftime("%Y-%m-%d-%H-%M-%S") + "-thumbsdown.json"
         s3_key = f"feedback/{filename}"
-        
+
         # Prepare feedback data
         feedback_data = {
             "timestamp": timestamp or dt.isoformat() + "Z",
             "rating": rating,
             "connection_id": connection_id,
             "user_message": user_msg,
-            "bot_message": bot_msg
+            "bot_message": bot_msg,
         }
-        
+
         # Write to S3
         if s3 and cfg.S3_BUCKET_NAME:
             s3.put_object(
                 Bucket=cfg.S3_BUCKET_NAME,
                 Key=s3_key,
                 Body=json.dumps(feedback_data, indent=2, ensure_ascii=False),
-                ContentType='application/json'
+                ContentType="application/json",
             )
             logger.info(f"Feedback saved: {s3_key}")
             return {"statusCode": 200, "body": "Feedback saved"}
         else:
             logger.error("S3 not configured for feedback")
             return {"statusCode": 500, "body": "S3 not configured"}
-            
+
     except Exception as e:
         logger.error(f"Feedback save error: {e}", exc_info=True)
         return {"statusCode": 500, "body": "Feedback save failed"}
 
+
 def lambda_handler(event, _context):
     try:
         connection_id = event.get("connectionId")
-        
+
         if not connection_id:
             return {"statusCode": 400, "body": "Missing connectionId"}
-        
+
         # Check for feedback action BEFORE checking for prompt
         action = event.get("action")
         if action == "submitFeedback":
             return _handle_feedback(event, connection_id)
-        
+
         # Now check for prompt (only needed for non-feedback actions)
         prompt = (event.get("prompt") or "").strip()
         if not prompt:
             _end_with_error(connection_id, "Please provide a prompt.", 400)
             return {"statusCode": 400, "body": "Empty prompt"}
-        
-                # HARDCODED SUPPORT QUESTION - ADD THIS HERE
+
+        # HARDCODED SUPPORT QUESTION
         prompt_lower = prompt.lower()
-        if any(term in prompt_lower for term in ["contact for support", "who can i contact", "support contact", "contact info", "support email", "who do i contact"]):
-            answer = "The i2i team is here anytime! Please contact us at info.i2i@genesis-analytics.com"
-            _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": answer})
+        if any(
+            term in prompt_lower
+            for term in [
+                "contact for support",
+                "who can i contact",
+                "support contact",
+                "contact info",
+                "support email",
+                "who do i contact",
+            ]
+        ):
+            answer = (
+                "The i2i team is here anytime! Please contact us at "
+                "info.i2i@genesis-analytics.com"
+            )
+            _send_ws(
+                connection_id,
+                {
+                    "type": "delta",
+                    "statusCode": 200,
+                    "format": "markdown",
+                    "text": answer,
+                },
+            )
             _send_ws(connection_id, {"type": "end", "statusCode": 200})
             return {"statusCode": 200, "body": "SUPPORT_CONTACT_OK"}
 
         try:
-            logger.info(f"START event meta: has_connection_id={bool(connection_id)}, prompt_len={len(prompt)}")
+            logger.info(
+                f"START event meta: has_connection_id={bool(connection_id)}, "
+                f"prompt_len={len(prompt)}"
+            )
         except Exception:
             pass
 
@@ -1307,7 +1612,15 @@ def lambda_handler(event, _context):
         phit = _match_personal(prompt)
         if phit:
             answer = phit.get("answer_template") or "Got it."
-            _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": answer})
+            _send_ws(
+                connection_id,
+                {
+                    "type": "delta",
+                    "statusCode": 200,
+                    "format": "markdown",
+                    "text": answer,
+                },
+            )
             _send_ws(connection_id, {"type": "end", "statusCode": 200})
             return {"statusCode": 200, "body": "PERSONAL_KB_OK"}
 
@@ -1316,49 +1629,105 @@ def lambda_handler(event, _context):
         if rhit and rhit.get("link_only"):
             url = (rhit.get("source_url") or "").strip()
             name = (rhit.get("primary_source") or "Link").strip()
-            text = f"{rhit.get('answer_text') or 'Here’s the best source:'}\n\n[{name}]({url})" if url else (rhit.get('answer_text') or 'Here’s the best source.')
-            _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": text})
+            text = (
+                f"{rhit.get('answer_text') or 'Here’s the best source:'}\n\n[{name}]({url})"
+                if url else
+                (rhit.get("answer_text") or "Here’s the best source.")
+            )
+            _send_ws(
+                connection_id,
+                {
+                    "type": "delta",
+                    "statusCode": 200,
+                    "format": "markdown",
+                    "text": text,
+                },
+            )
             _send_ws(connection_id, {"type": "end", "statusCode": 200})
             return {"statusCode": 200, "body": "RUNTIME_LINK_ONLY_OK"}
 
         # 2.5) Summarization flow
-        if any(t in (prompt or "").lower() for t in (
-            "summarize", "summary of", "sum up", "tl;dr", "key findings", "key points",
-            "what are the findings", "what are the main points"
-        )):
+        if any(
+            t in (prompt or "").lower()
+            for t in (
+                "summarize",
+                "summary of",
+                "sum up",
+                "tl;dr",
+                "key findings",
+                "key points",
+                "what are the findings",
+                "what are the main points",
+            )
+        ):
             history_raw = event.get("history") or []
             history_msgs = _normalize_history_items(history_raw)
             first_url = _extract_first_url_from_history(history_raw)
             if not first_url:
-                _end_with_error(connection_id, "I couldn’t find a prior link to summarize. Please paste the link or ask again after I share one.", 400)
+                _end_with_error(
+                    connection_id,
+                    "I couldn’t find a prior link to summarize. Please paste the link "
+                    "or ask again after I share one.",
+                    400,
+                )
                 return {"statusCode": 400, "body": "No prior link in history"}
-            _stream_summary_from_chunks(connection_id, prompt, first_url, history_messages=history_msgs)
+            _stream_summary_from_chunks(
+                connection_id, prompt, first_url, history_messages=history_msgs
+            )
             return {"statusCode": 200, "body": "SUMMARY_OK"}
 
         # 3) COUNT flow
         if _looks_like_count(prompt):
-            if not (_os and cfg.OPENSEARCH_INDEX and cfg.OPENSEARCH_TEXT_FIELD and cfg.OPENSEARCH_DOC_ID_FIELD and cfg.OPENSEARCH_PAGE_FIELD):
-                _end_with_error(connection_id, "Document counting is not configured.", 501)
+            if not (
+                _os
+                and cfg.OPENSEARCH_INDEX
+                and cfg.OPENSEARCH_TEXT_FIELD
+                and cfg.OPENSEARCH_DOC_ID_FIELD
+                and cfg.OPENSEARCH_PAGE_FIELD
+            ):
+                _end_with_error(
+                    connection_id, "Document counting is not configured.", 501
+                )
                 return {"statusCode": 501, "body": "COUNT not configured"}
             keyword = _extract_keyword(prompt)
             if not keyword:
-                _end_with_error(connection_id, "I couldn't find the keyword to count. Try: how many papers mention \"cats\"?", 400)
+                _end_with_error(
+                    connection_id,
+                    'I couldn\'t find the keyword to count. Try: '
+                    'how many papers mention "cats"?',
+                    400,
+                )
                 return {"statusCode": 400, "body": "No keyword extracted"}
             try:
                 summary, details_md, _ = _os_count_keyword(keyword=keyword)
-                _send_ws(connection_id, {"type": "delta", "statusCode": 200, "format": "markdown", "text": summary + "\n\n" + details_md})
+                _send_ws(
+                    connection_id,
+                    {
+                        "type": "delta",
+                        "statusCode": 200,
+                        "format": "markdown",
+                        "text": summary + "\n\n" + details_md,
+                    },
+                )
                 _send_ws(connection_id, {"type": "end", "statusCode": 200})
                 return {"statusCode": 200, "body": "COUNT OK"}
             except Exception as e:
                 logger.error(f"COUNT error: {e}", exc_info=True)
-                _end_with_error(connection_id, "There was a problem counting documents.", 500)
+                _end_with_error(
+                    connection_id,
+                    "There was a problem counting documents.",
+                    500,
+                )
                 return {"statusCode": 500, "body": "COUNT error"}
 
         # 4) Normal talk
         history_raw = event.get("history") or []
         history_msgs = _normalize_history_items(history_raw)
         try:
-            logger.info(f"History received: items={len(history_raw)}, used_text_turns={len(history_msgs)}")
+            logger.info(
+                f"History received: items={len(history_raw)}, "
+                f"used_text_turns={len(history_msgs)}"
+            )
         except Exception:
             pass
 

@@ -85,10 +85,16 @@ def handle_feedback(event):
 
 def lambda_handler(event, context):
     logger.info(f"lambda_handler called with event: {json.dumps(event)}")
+    
+    # Check if this is a feedback event (action is at root level)
+    if event.get('action') == 'submitFeedback':
+        logger.info("Detected submitFeedback action at root level")
+        return handle_feedback(event)
+    
+    # For WebSocket routes, get routeKey and connectionId
     route_key = event.get('requestContext', {}).get('routeKey')
     connection_id = event.get('requestContext', {}).get('connectionId')
 
-    # Handle submitFeedback specially - it has payload at root level
     if route_key == 'submitFeedback':
         logger.info("Handling submitFeedback route")
         return handle_feedback(event)
