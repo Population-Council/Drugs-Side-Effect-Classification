@@ -206,11 +206,11 @@ export class CdkBackendStackInstanceC extends cdk.Stack {
       resources: [OPENSEARCH_COLLECTION_ARN],
     }));
 
-    // 5) S3 GetObject (for presigned URLs later)
-    lambdaXbedrock.addToRolePolicy(new iam.PolicyStatement({
-      actions: ['s3:GetObject'],
-      resources: [bucketC.arnForObjects('*')],
-    }));
+      // 5) S3 GetObject (for presigned URLs later)
+  lambdaXbedrock.addToRolePolicy(new iam.PolicyStatement({
+    actions: ['s3:GetObject', 's3:PutObject'],  // <-- Added PutObject
+    resources: [bucketC.arnForObjects('*')],
+  }));
 
     // --- Amplify Frontend App ---
     const githubTokenSecret = secretsmanager.Secret.fromSecretNameV2(
