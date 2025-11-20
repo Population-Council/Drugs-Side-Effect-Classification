@@ -16,6 +16,31 @@ try:
 except Exception:
     _OPENSEARCH_AVAILABLE = False
 
+CORE_CONTEXT = """
+CORE KNOWLEDGE (Use this for questions about "What is i2i", "What is SSLN", "What is SHIPP", or "What is HIV-DDM"):
+
+1. Insight 2 Implementation (i2i):
+   - Definition: An initiative aimed at bridging the gap between evidence and action in HIV prevention.
+   - Objectives: Collaborate with Country Champions to identify/prioritise evidence gaps; Consolidate and synthesise regional HIV prevention evidence into user-friendly products; Support Champions to use this evidence to strengthen policies/programmes.
+   - Focus Areas: 1) Using Data to Improve HIV Programming, 2) Reaching Key Populations, 3) Engaging Men in HIV Efforts, 4) Supporting ARV Based Prevention.
+
+2. South to South HIV Prevention Learning Network (SSLN):
+   - Definition: A network supporting the Global HIV Prevention Coalition (GPC) to strengthen country HIV prevention programmes.
+   - Objectives: Activate leaders to co-create solutions; Assess programmatic gaps; Document and replicate promising practices; Build social capital for joint problem-solving; Strengthen NSP/PEPFAR COP planning.
+   - Process: Uses a country-led approach where "Country Champions" (over 600 nominated) complete Self-Assessments (PSATs), co-develop Learning Agendas, and share experiences to achieve sustained epidemic control.
+
+3. Sub-national HIV Estimates in Priority Populations Tool (SHIPP):
+   - Definition: The i2i SHIPP dashboard provides evidence-based data insights for HIV risk in adolescent and young population groups to inform precision programming at the district level.
+   - Coverage: Currently available for Zimbabwe and Uganda, with upcoming dashboards for SSLN Southern and Western region countries.
+   - Features: Data disaggregated by age, gender, province/region, and district; organized by risk behavior groups; allows for district comparisons to support resource allocation.
+
+4. HIV Data Decision Maker (HIV-DDM):
+   - Definition: A centralised resource for HIV-related data and analytics tools that streamlines access to critical datasets and actionable insights.
+   - Purpose: Supports all stages of HIV program planning, monitoring, and evaluation for program managers, evaluators, and policymakers.
+   - Key Benefit: Simplifies access to reliable data and ensures transparency/consistency across program metrics.
+   - Usage: It is a downloadable interactive tool (PowerPoint in slideshow mode) featuring an introduction by Tobi, the i2i ambassador.
+   - Explainer Resource: https://cdn.prod.website-files.com/63ff2c1bed17e63400e9c2e7/6825b9a961bf5faa4e79bd16_SSLN-i2i%20HIV%20Data%20Decision%20Maker%20-%20Explainer%20Pager%20.pdf
+"""
 
 cfg = load_from_env()
 
@@ -316,12 +341,7 @@ def _emphasize_stats(text: str) -> str:
 
 
 # ---------- Sentence-level footnote links ----------
-FOOTNOTE_FALLBACK_URL = (
-    "https://media.cnn.com/api/v1/images/stellar/prod/"
-    "210226041654-05-pokemon-anniversary-design.jpg"
-    "?q=w_1920,h_1080,x_0,y_0,c_fill"
-)
-
+FOOTNOTE_FALLBACK_URL = "https://www.hivinterchange.com/i2i/insight-2-implementation"
 
 def _annotate_sentences_with_links(
     text: str,
@@ -1274,6 +1294,7 @@ def _talk_with_optional_kb(
 
     if runtime_ctx or kb_text:
         user_text = (
+            f"{CORE_CONTEXT}\n\n"  # <--- INJECT DEFINITIONS HERE
             "Use the following runtime routing map and brief bios to choose the right data source/tool. "
             "If helpful, consult the provided excerpts. "
             "Do not mention internal tools. "
@@ -1287,6 +1308,7 @@ def _talk_with_optional_kb(
         )
     else:
         user_text = (
+            f"{CORE_CONTEXT}\n\n"  # <--- INJECT HERE AS WELL
             "Answer helpfully and accurately. If information is missing, say what would help.\n\n"
             f"User question: {prompt}"
         )
