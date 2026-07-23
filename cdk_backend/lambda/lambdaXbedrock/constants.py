@@ -5,16 +5,8 @@ from dataclasses import dataclass
 import os
 
 DEFAULT_REGION = "us-east-1"
-DEFAULT_MODEL_ID = "anthropic.claude-3-5-sonnet-20240620-v1:0"
-# DEFAULT_SYSTEM_PROMPT = (
-#     "You are Tobi, a Research Assistant. Prioritize the provided Knowledge Source information when "
-#     "answering the user's question. If the snippets do not fully cover the question, use your general "
-#     "knowledge to fill small gaps—be explicit about assumptions, and ask for missing details when they "
-#     "are critical. Be accurate, concise, and approachable. When helpful, suggest credible public "
-#     "resources (e.g., UNAIDS, WHO, PHIA, PrEPWatch) without inventing links. If a 'Suggested reference:' "
-#     "appears at the top of the conversation, consider it a useful starting point. If uncertain, say so "
-#     "and propose what data would resolve the uncertainty."
-# )
+# DEFAULT_MODEL_ID = "anthropic.claude-3-5-sonnet-20240620-v1:0"
+DEFAULT_MODEL_ID = "anthropic.claude-sonnet-5"
 
 DEFAULT_SYSTEM_PROMPT = (
     "You are Tobi, the SSLN & I2I Research Assistant. "

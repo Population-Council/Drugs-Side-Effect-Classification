@@ -1201,7 +1201,7 @@ _HIV_TOKENS = {
     "hiv", "aids", "prep", "pre-exposure", "prophylaxis", "incidence",
     "prevalence", "who", "unaids", "scorecards", "gpc", "statcompiler",
     "dhis2", "phia", "agyw", "key", "populations", "psat", "shipp", "pepfar",
-    "dsd", "differentiated", "pokemon",
+    "dsd", "differentiated", "pokemon", "ywss", 
     "adolescent", "adolescents", "behavioral", "behavioural", "behaviour", "behavior"
 }
 

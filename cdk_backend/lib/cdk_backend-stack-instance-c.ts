@@ -30,9 +30,12 @@ const MODEL_ID = 'anthropic.claude-sonnet-4-20250514-v1:0'; // fallback only
 
 // Switch to 3.7 Sonnet via cross-Region inference profile
 const USE_CRI = true;
-const INFERENCE_PROFILE_ID = 'us.anthropic.claude-sonnet-4-20250514-v1:0';
+// const INFERENCE_PROFILE_ID = 'us.anthropic.claude-sonnet-4-20250514-v1:0';
+const INFERENCE_PROFILE_ID = 'us.anthropic.claude-sonnet-5';
 const INFERENCE_PROFILE_ARN =
-  'arn:aws:bedrock:us-east-1:887585754747:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0';
+  'arn:aws:bedrock:us-east-1:887585754747:inference-profile/us.anthropic.claude-sonnet-5';
+// const INFERENCE_PROFILE_ARN =
+//   'arn:aws:bedrock:us-east-1:887585754747:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0';
 
 // Foundation model ARN helper (used when scoping to a single region)
 function foundationModelArn(region: string) {
@@ -187,7 +190,8 @@ export class CdkBackendStackInstanceC extends cdk.Stack {
         actions: ['bedrock:InvokeModel', 'bedrock:InvokeModelWithResponseStream'],
         resources: [
           INFERENCE_PROFILE_ARN,                                        // profile-based auth
-          'arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-20250514-v1:0',
+          // 'arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-4-20250514-v1:0',
+        'arn:aws:bedrock:*::foundation-model/anthropic.claude-sonnet-5',
         ],
       }));
     }
