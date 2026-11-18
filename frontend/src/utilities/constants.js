@@ -110,6 +110,12 @@ export const LANDING_PAGE_TEXT = {
 export const CHAT_API = process.env.REACT_APP_CHAT_API;
 export const WEBSOCKET_API = process.env.REACT_APP_WEBSOCKET_API;
 export const AVATAR_BOT_WEBSITE_LINK = process.env.REACT_APP_AVATAR_BOT_WEBSITE_LINK;
+// "Upload Content" presign endpoint (Lambda Function URL, set by CDK on the Amplify app)
+export const UPLOAD_API = process.env.REACT_APP_UPLOAD_API;
+
+// "Upload Content" banner button (color from the Figma mock)
+export const ALLOW_UPLOAD_CONTENT = true;
+export const UPLOAD_BUTTON_COLOR = "#482045";
 
 // Limits & features
 export const MAX_TEXT_LENGTH_PDF = 5000;

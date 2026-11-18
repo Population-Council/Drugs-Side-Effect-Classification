@@ -24,6 +24,16 @@ const OPENSEARCH_DOC_ID_FIELD = 'x-amz-bedrock-kb-source-uri.keyword';
 const OPENSEARCH_LAYER_ARN = 'arn:aws:lambda:us-east-1:887585754747:layer:OpenSearchPythonLayer:1';
 const S3_BUCKET_NAME_CONST = 'cdkbackendstack-instanceb-litigationbdocbucket15a6-4leqsqspqrxj'; // optional
 
+// ---- "Upload Content" (user-submitted docs) ----
+// Browser origins allowed to upload. Add any custom domain here if one is attached later.
+const UPLOAD_ALLOWED_ORIGINS = [
+  'https://main.d2bc2oeybri07n.amplifyapp.com',
+  'http://localhost:3000',
+];
+// Must stay OUTSIDE the KB inclusion prefix (public/) so submissions are reviewed before indexing.
+const UPLOAD_PREFIX = 'submitted_docs/';
+const MAX_UPLOAD_BYTES = 50 * 1024 * 1024; // 50 MB
+
 // ---- MODEL CONFIG ----
 // (Keep MODEL_ID for reference; it's unused when USE_CRI=true)
 const MODEL_ID = 'anthropic.claude-sonnet-4-20250514-v1:0'; // fallback only
@@ -73,6 +83,15 @@ export class CdkBackendStackInstanceC extends cdk.Stack {
       autoDeleteObjects: false,
       encryption: s3.BucketEncryption.S3_MANAGED,
       versioned: false,
+      // Lets the browser POST "Upload Content" files directly (presigned, submitted_docs/ only)
+      cors: [
+        {
+          allowedMethods: [s3.HttpMethods.POST],
+          allowedOrigins: UPLOAD_ALLOWED_ORIGINS,
+          allowedHeaders: ['*'],
+          maxAge: 3000,
+        },
+      ],
     });
 
     // --- KB Data Source ---
@@ -216,6 +235,46 @@ export class CdkBackendStackInstanceC extends cdk.Stack {
     resources: [bucketC.arnForObjects('*')],
   }));
 
+    // --- "Upload Content": presigned-upload Lambda + public Function URL ---
+    const submitDocFn = new lambda.Function(this, 'submit-doc-instanceC', {
+      runtime: lambda.Runtime.PYTHON_3_12,
+      handler: 'index.lambda_handler',
+      code: lambda.Code.fromAsset('lambda/submit-doc'),
+      environment: {
+        BUCKET_NAME: bucketC.bucketName,
+        UPLOAD_PREFIX: UPLOAD_PREFIX,
+        MAX_UPLOAD_BYTES: String(MAX_UPLOAD_BYTES),
+      },
+      timeout: cdk.Duration.seconds(10),
+      memorySize: 128,
+    });
+
+    // Can only write into submitted_docs/ (never public/, so never straight into the KB)
+    submitDocFn.addToRolePolicy(new iam.PolicyStatement({
+      actions: ['s3:PutObject'],
+      resources: [bucketC.arnForObjects(`${UPLOAD_PREFIX}*`)],
+    }));
+
+    const submitDocUrl = submitDocFn.addFunctionUrl({
+      authType: lambda.FunctionUrlAuthType.NONE,
+      cors: {
+        allowedOrigins: UPLOAD_ALLOWED_ORIGINS,
+        allowedMethods: [lambda.HttpMethod.POST],
+        allowedHeaders: ['content-type'],
+        maxAge: cdk.Duration.minutes(10),
+      },
+    });
+
+    // Since Oct 2025, public Function URLs also need lambda:InvokeFunction.
+    // Scoped with InvokedViaFunctionUrl so it can ONLY be called through the URL.
+    // (CDK 2.162 doesn't know this property yet, hence the override.)
+    const submitDocInvokePerm = new lambda.CfnPermission(this, 'submit-doc-url-invoke-instanceC', {
+      action: 'lambda:InvokeFunction',
+      functionName: submitDocFn.functionName,
+      principal: '*',
+    });
+    submitDocInvokePerm.addPropertyOverride('InvokedViaFunctionUrl', true);
+
     // --- Amplify Frontend App ---
     const githubTokenSecret = secretsmanager.Secret.fromSecretNameV2(
       this,
@@ -248,6 +307,7 @@ export class CdkBackendStackInstanceC extends cdk.Stack {
       }),
       environmentVariables: {
         REACT_APP_WEBSOCKET_API: `wss://${webSocketApi.apiId}.execute-api.${this.region}.amazonaws.com/${webSocketStage.stageName}/`,
+        REACT_APP_UPLOAD_API: submitDocUrl.url,
       },
     });
 
@@ -280,6 +340,10 @@ export class CdkBackendStackInstanceC extends cdk.Stack {
     new cdk.CfnOutput(this, 'AmplifyAppURLInstanceBOutput', {
       value: `https://${mainBranch.branchName}.${amplifyApp.appId}.amplifyapp.com`,
       description: 'Amplify App URL for main branch',
+    });
+    new cdk.CfnOutput(this, 'SubmitDocUrlOutput', {
+      value: submitDocUrl.url,
+      description: 'Function URL used by the "Upload Content" button (REACT_APP_UPLOAD_API)',
     });
     new cdk.CfnOutput(this, 'S3BucketNameOutput', {
       value: bucketC.bucketName,
