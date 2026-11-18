@@ -307,7 +307,10 @@ export class CdkBackendStackInstanceC extends cdk.Stack {
       }),
       environmentVariables: {
         REACT_APP_WEBSOCKET_API: `wss://${webSocketApi.apiId}.execute-api.${this.region}.amazonaws.com/${webSocketStage.stageName}/`,
-        REACT_APP_UPLOAD_API: submitDocUrl.url,
+        // NOTE: the upload URL is NOT set here on purpose. Any change to this Amplify
+        // resource makes CloudFormation re-validate the GitHub token in Secrets Manager
+        // ('pc-github-token'), which currently fails. The URL lives in
+        // frontend/src/utilities/constants.js (UPLOAD_API) instead — see SubmitDocUrlOutput.
       },
     });
 

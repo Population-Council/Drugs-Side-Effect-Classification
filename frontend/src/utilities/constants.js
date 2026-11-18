@@ -110,8 +110,10 @@ export const LANDING_PAGE_TEXT = {
 export const CHAT_API = process.env.REACT_APP_CHAT_API;
 export const WEBSOCKET_API = process.env.REACT_APP_WEBSOCKET_API;
 export const AVATAR_BOT_WEBSITE_LINK = process.env.REACT_APP_AVATAR_BOT_WEBSITE_LINK;
-// "Upload Content" presign endpoint (Lambda Function URL, set by CDK on the Amplify app)
-export const UPLOAD_API = process.env.REACT_APP_UPLOAD_API;
+// "Upload Content" presign endpoint = CDK output SubmitDocUrlOutput (CdkBackendStack-InstanceC).
+// Hardcoded because updating the Amplify app's env vars via CDK currently fails (GitHub token).
+export const UPLOAD_API =
+  process.env.REACT_APP_UPLOAD_API || "https://lkjqwthc6i2sypm7kw5ho5qbgu0iuiuh.lambda-url.us-east-1.on.aws/";
 
 // "Upload Content" banner button (color from the Figma mock)
 export const ALLOW_UPLOAD_CONTENT = true;
