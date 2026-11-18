@@ -1201,14 +1201,21 @@ _HIV_TOKENS = {
     "hiv", "aids", "prep", "pre-exposure", "prophylaxis", "incidence",
     "prevalence", "who", "unaids", "scorecards", "gpc", "statcompiler",
     "dhis2", "phia", "agyw", "key", "populations", "psat", "shipp", "pepfar",
-    "dsd", "differentiated", "pokemon", "ywss", 
-    "adolescent", "adolescents", "behavioral", "behavioural", "behaviour", "behavior"
+    "dsd", "differentiated", "pokemon",
+    "adolescent", "adolescents", "behavioral", "behavioural", "behaviour", "behavior",
+    "ywss", "fsw", "sex", "transactional",  # <-- YWSS + related terms from the doc
 }
 
 
 def _should_use_kb(prompt: str) -> bool:
-    toks = set(re.findall(r"[a-z0-9\-]+", _norm(prompt)))
-    return any(t in toks for t in _HIV_TOKENS)
+    # NOTE (2026): keyword gate retired in favor of retrieval-score gating.
+    # We now always retrieve and let the top KB score decide whether to show
+    # links/sources/footnotes (see KB_LINK_SCORE_THRESHOLD in
+    # _talk_with_optional_kb). Keeping the old logic below, commented, in case
+    # we want to re-enable the keyword gate later.
+    return True
+    # toks = set(re.findall(r"[a-z0-9\-]+", _norm(prompt)))
+    # return any(t in toks for t in _HIV_TOKENS)
 
 
 def _runtime_relevant_resources(prompt: str, top_n: int = 4) -> list[dict]:
@@ -1272,6 +1279,13 @@ def _build_runtime_context(prompt: str) -> str:
         return ""
 
 
+# Minimum top KB retrieval score required before we attach any links,
+# footnotes, or a "sources" block. Off-topic queries retrieve at ~0.36;
+# real on-topic queries sit ~0.43+. 0.45 clears junk while keeping
+# legitimate low-scorers like SHIPP/AGYW. Tune here if needed.
+KB_LINK_SCORE_THRESHOLD = 0.45
+
+
 def _talk_with_optional_kb(
     connection_id: str,
     prompt: str,
@@ -1291,6 +1305,18 @@ def _talk_with_optional_kb(
     kb_text, kb_sources = ("", [])
     if use_kb:
         kb_text, kb_sources = _kb_retrieve(prompt, cfg.KNOWLEDGE_BASE_ID)
+
+    # Change 5: decide whether retrieval was actually relevant enough to
+    # justify showing links/footnotes/sources. Trust the top KB score.
+    # Off-topic queries (weather, "who are you", trivia) retrieve at low
+    # scores and will be treated as NOT relevant -> no links attached.
+    top_kb_score = 0.0
+    if kb_sources:
+        try:
+            top_kb_score = max((s.get("score") or 0.0) for s in kb_sources)
+        except Exception:
+            top_kb_score = 0.0
+    kb_is_relevant = top_kb_score >= KB_LINK_SCORE_THRESHOLD
 
     if runtime_ctx or kb_text:
         user_text = (
@@ -1319,23 +1345,16 @@ def _talk_with_optional_kb(
     messages.append({"role": "user", "content": [{"text": user_text}]})
     system = [{"text": cfg.SYSTEM_PROMPT}] if cfg.SYSTEM_PROMPT else None
 
-    # Precompute a candidate URL for sentence-level footnotes:
-    # 1) first KB source (if any)
-    # 2) otherwise ref_url
-    # 3) otherwise fallback (Pokémon)
+    # Change 6 + 5: footnote only a genuinely-retrieved source, and only when
+    # retrieval cleared the relevance threshold. No more hardcoded ref_url or
+    # Pokémon fallback footnote -> low-relevance answers get NO [[1]] marker.
     pre_sources = []
-    if use_kb and kb_sources:
+    if kb_is_relevant and kb_sources:
         pre_sources.extend(kb_sources)
-    if use_kb and ref_url and not pre_sources:
-        pre_sources.append(
-            {"url": ref_url, "label": _title_for_url(ref_url)}
-        )
     pre_sources = _dedupe_sources_best(pre_sources)
     footnote_url = None
     if pre_sources:
         footnote_url = (pre_sources[0].get("url") or "").strip()
-    if not footnote_url:
-        footnote_url = FOOTNOTE_FALLBACK_URL
 
     # Buffer full model output, then format + annotate with sentence footnotes
     full_answer_raw_parts: list[str] = []
@@ -1386,12 +1405,14 @@ def _talk_with_optional_kb(
     full_summary = _linkify_bare_urls(full_answer_raw)
     full_summary = _emphasize_stats(full_summary)
 
-    # Add a single clickable marker [[1]](first-source-url) on the 2nd or 3rd sentence
-    full_summary, _ = _annotate_sentences_with_links(
-        full_summary,
-        footnote_url,
-        start_index=1,
-    )
+    # Add a single clickable marker [[1]](first-source-url) on the 2nd or 3rd
+    # sentence — ONLY when we have a relevant retrieved source to point at.
+    if footnote_url:
+        full_summary, _ = _annotate_sentences_with_links(
+            full_summary,
+            footnote_url,
+            start_index=1,
+        )
 
     # Send formatted answer text
     _send_ws(
@@ -1405,8 +1426,11 @@ def _talk_with_optional_kb(
     )
 
     # --- Inline suggestion of main ref_url (separate from footnotes) ---
+    # Change 5/6: only offer an "official source" line when retrieval was
+    # actually relevant. Prevents the hardcoded ref_url guess from being
+    # stapled onto off-topic / identity answers.
     try:
-        if ref_url:
+        if ref_url and kb_is_relevant:
             ref_domain = urllib.parse.urlparse(ref_url).netloc.lower()
             already_contains_ref = ref_url in (full_summary or "")
             already_linked_same_domain = bool(re.search(
@@ -1436,14 +1460,12 @@ def _talk_with_optional_kb(
     except Exception as e:
         logger.warning(f"Inline suggested reference append error: {e}")
 
-    # Build final sources block (may include more than first source)
+    # Build final sources block (may include more than first source).
+    # Change 5: only when retrieval cleared the relevance threshold, and no
+    # longer inject the hardcoded ref_url guess as a fake "source".
     sources_to_send = []
-    if use_kb and kb_sources:
+    if kb_is_relevant and kb_sources:
         sources_to_send.extend(kb_sources)
-    if use_kb and ref_url and not sources_to_send:
-        sources_to_send.append(
-            {"url": ref_url, "label": _title_for_url(ref_url)}
-        )
     sources_to_send = _dedupe_sources_best(sources_to_send)
 
     # Do NOT show the first one – it's reserved for the [1] link.

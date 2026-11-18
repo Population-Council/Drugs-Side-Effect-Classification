@@ -137,7 +137,7 @@ export class CdkBackendStackInstanceC extends cdk.Stack {
         INFERENCE_PROFILE_ID: USE_CRI ? INFERENCE_PROFILE_ID : '',
 
         // Optional: quick tone control
-        SYSTEM_PROMPT: 'You are a concise, helpful assistant.',
+        // SYSTEM_PROMPT: 'You are a concise, helpful assistant.',
       },
       timeout: cdk.Duration.seconds(60),
       memorySize: 256,
